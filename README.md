@@ -1,1 +1,17 @@
 # Trabalho-Final-FCG
+- Todas as matrizes de projeções devem ser as dos labs, não pode usar bibliotecas para transformações de câmera
+- Tem que poder usar o mouse também
+- Pelo menos uma malha complexa (de boas)
+- Câmera look-at e uma free
+- No mínimo um objeto com 2 instâncias dele
+- Teste de intersecção de objetos-> Devem ter 3 tipos de colisões:
+                                  - ?
+                                  - ?
+                                  - ?
+- Testes de colisão devem estar em um arquivo à parte
+- Modelo de iluminação de difusa e blinn
+      - no min. 1 objeto com modelo de gouraud
+      - no min. 1 objeto com modelo de Phong
+- Todos objetos tem que ter cored definidas por imagens
+- No min. um objeto com movimentação definida por uma curva de bezier cubica
+- Animação baseada no tempo
