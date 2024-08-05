@@ -20,7 +20,9 @@ uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
 #define SPHERE 0
-#define DOG  1
+#define DOG    1
+#define CEU    2
+#define SHIP   3
 
 uniform int object_id;
 
@@ -65,9 +67,10 @@ void main()
     vec4 v = normalize(camera_position - p);
 
     // Coordenadas de textura U e V
-    float U = 0.0;
-    float V = 0.0;
+    float U = 0.0f;
+    float V = 0.0f;
 
+    vec3 Kd0 = vec3(0.0f,0.0f,0.0f);
     if ( object_id == SPHERE )
     {
         // PREENCHA AQUI as coordenadas de textura da esfera, computadas com
@@ -94,34 +97,34 @@ void main()
 
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + (M_PI/2))/M_PI;
+        Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
     }
     else if ( object_id == DOG )
     {
-        // PREENCHA AQUI as coordenadas de textura do coelho, computadas com
-        // projeção planar XY em COORDENADAS DO MODELO. Utilize como referência
-        // o slides 99-104 do documento Aula_20_Mapeamento_de_Texturas.pdf,
-        // e também use as variáveis min*/max* definidas abaixo para normalizar
-        // as coordenadas de textura U e V dentro do intervalo [0,1]. Para
-        // tanto, veja por exemplo o mapeamento da variável 'p_v' utilizando
-        // 'h' no slides 158-160 do documento Aula_20_Mapeamento_de_Texturas.pdf.
-        // Veja também a Questão 4 do Questionário 4 no Moodle.
 
-        float minx = bbox_min.x;
-        float maxx = bbox_max.x;
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
+    } else if(object_id == CEU)
+    {
+        
+        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        float miny = bbox_min.y;
-        float maxy = bbox_max.y;
+        float ro = 1;
+        vec4 p_ = bbox_center + (position_model - bbox_center)/ro * length(position_model - bbox_center);
+        vec4 p_Vet = p_ - bbox_center;
 
-        float minz = bbox_min.z;
-        float maxz = bbox_max.z;
+        float theta = atan(p_Vet.x, p_Vet.z);
+        float phi = asin(p_Vet.y/ro);
 
-        U = 0.0;
-        V = 0.0;
+        U = (theta + M_PI)/(2*M_PI);
+        V = (phi + (M_PI/2))/M_PI;
+        Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
     }
 
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
-    vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+    
 
     // Equação de Iluminação
     float lambert = max(0,dot(n,l));
