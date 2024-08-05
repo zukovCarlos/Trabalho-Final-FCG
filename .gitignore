@@ -1,0 +1,6 @@
+CMakeLists.txt
+bin
+build
+Makefile
+Makefile.macOS
+.vscode
