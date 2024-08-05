@@ -20,8 +20,8 @@ uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
 #define SPHERE 0
-#define BUNNY  1
-#define PLANE  2
+#define DOG  1
+
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -85,10 +85,17 @@ void main()
 
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        U = 0.0;
-        V = 0.0;
+        float ro = 1;
+        vec4 p_ = bbox_center + (position_model - bbox_center)/ro * length(position_model - bbox_center);
+        vec4 p_Vet = p_ - bbox_center;
+
+        float theta = atan(p_Vet.x, p_Vet.z);
+        float phi = asin(p_Vet.y/ro);
+
+        U = (theta + M_PI)/(2*M_PI);
+        V = (phi + (M_PI/2))/M_PI;
     }
-    else if ( object_id == BUNNY )
+    else if ( object_id == DOG )
     {
         // PREENCHA AQUI as coordenadas de textura do coelho, computadas com
         // projeção planar XY em COORDENADAS DO MODELO. Utilize como referência
@@ -111,12 +118,7 @@ void main()
         U = 0.0;
         V = 0.0;
     }
-    else if ( object_id == PLANE )
-    {
-        // Coordenadas de textura do plano, obtidas do arquivo OBJ.
-        U = texcoords.x;
-        V = texcoords.y;
-    }
+
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
     vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
