@@ -120,6 +120,12 @@ void main()
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + (M_PI/2))/M_PI;
         Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
+    } else if(object_id == SHIP)
+    {
+        
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
     }
 
 

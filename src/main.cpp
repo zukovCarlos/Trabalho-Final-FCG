@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
 
     // Carregamos duas imagens para serem utilizadas como textura
     LoadTextureImage("../../data/map.jpg");      // TextureImage0
-    LoadTextureImage("../../data/stars.png"); // TextureImage1
+    LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
     LoadTextureImage("../../data/dog.png"); // TextureImage2
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
@@ -315,6 +315,8 @@ int main(int argc, char* argv[])
     BuildTrianglesAndAddToVirtualScene(&dogmodel);
 
     ObjModel shipmodel("../../data/ship.obj");
+    ComputeNormals(&shipmodel);
+    BuildTrianglesAndAddToVirtualScene(&shipmodel);
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -439,6 +441,7 @@ int main(int argc, char* argv[])
         if(position_X > position_X_inc){
             position_X -= speed;
         }
+
         model = Matrix_Translate(position_X,0.0f,0.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
@@ -446,10 +449,12 @@ int main(int argc, char* argv[])
         DrawVirtualObject("eyes");
         DrawVirtualObject("face");
 
-        model = Matrix_Translate(position_X,0.0f,0.0f);
+        model = Matrix_Translate(position_X,0.0f,0.0f)
+                * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
+                * Matrix_Scale(0.5f,0.5f,0.5f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, SHIP);
-        DrawVirtualObject("ship");
+        DrawVirtualObject("ship");    
 
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
