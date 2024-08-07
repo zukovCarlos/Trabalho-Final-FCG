@@ -34,6 +34,7 @@ uniform vec4 bbox_max;
 uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
+uniform sampler2D TextureImage3;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -122,10 +123,9 @@ void main()
         Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
     } else if(object_id == SHIP)
     {
-        
         U = texcoords.x;
         V = texcoords.y;
-        Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
+        Kd0 = texture(TextureImage3, vec2(U,V)).rgb;
     }
 
 

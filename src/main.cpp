@@ -186,10 +186,10 @@ float g_AngleZ = 0.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
 float speed = 0.001f;
-bool  speed_X_flag_left = false;
-bool  speed_X_flag_right = false;
-bool  speed_Z_flag_up = false;
-bool  speed_Z_flag_down = false;
+bool  walk_up = false;
+bool  walk_down = false;
+bool  walk_left = false;
+bool  walk_right = false;
 
 // "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
 // pressionado no momento atual. Veja função MouseButtonCallback().
@@ -260,7 +260,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - Seu Cartao - Seu Nome", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "SpaceDog", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -308,6 +308,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/map.jpg");      // TextureImage0
     LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
     LoadTextureImage("../../data/dog.png"); // TextureImage2
+    LoadTextureImage("../../data/metal.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -425,25 +426,19 @@ int main(int argc, char* argv[])
               * Matrix_Scale(30.0f,30.0f,30.0f);
               
               
-        if(speed_X_flag_left)
+        if(walk_left)
             speed_X += speed;
-        else if(!speed_X_flag_left)
-            speed_X = 0.0f;
-        if(speed_X_flag_right){
-            speed_X -= speed;
-            printf("%d", speed_X);
-        }
-        else if(!speed_X_flag_left)
-            speed_X = 0.0f;    
         
-        if(speed_Z_flag_up)
-            speed_Z += speed;
-        else if(!speed_Z_flag_up)
-            speed_Z = 0.0f;
-        if(speed_Z_flag_down)
+        if(walk_right)
+            speed_X -= speed;
+           
+        
+        if(walk_up)
             speed_Z -= speed;
-        else if(!speed_Z_flag_down)
-            speed_Z = 0.0f;
+        
+        if(walk_down)
+            speed_Z += speed;
+        
 
         model = model
               * Matrix_Rotate_X(speed_Z)
@@ -562,6 +557,7 @@ void LoadTextureImage(const char* filename)
     stbi_image_free(data);
 
     g_NumLoadedTextures += 1;
+    
 }
 
 // Função que desenha um objeto armazenado em g_VirtualScene. Veja definição
@@ -1209,53 +1205,22 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_A)
-    {
-        if (action == GLFW_PRESS)
-        {
-            speed_X_flag_left = true;
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            speed_X_flag_left = false;
-        }
-    }
+    if (glfwGetKey(window,GLFW_KEY_W) == GLFW_PRESS){
+        walk_up = true;    
+    } else walk_up = false;  
 
-    if (key == GLFW_KEY_D)
+    if (glfwGetKey(window,GLFW_KEY_A) == GLFW_PRESS)
     {
-        if (action == GLFW_PRESS)
-        {
-            speed_X_flag_right = true;
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            speed_X_flag_right = false;
-        }
-    }
-
-    if (key == GLFW_KEY_W)
+        walk_left = true;
+    } else walk_left = false;  
+    if (glfwGetKey(window,GLFW_KEY_S) == GLFW_PRESS)
     {
-        if (action == GLFW_PRESS)
-        {
-            speed_Z_flag_up = true;
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            speed_Z_flag_up = false;
-        }
-    }
-
-    if (key == GLFW_KEY_S)
+        walk_down = true;
+    } else walk_down = false; 
+    if (glfwGetKey(window,GLFW_KEY_D) == GLFW_PRESS)
     {
-        if (action == GLFW_PRESS)
-        {
-            speed_Z_flag_down = true;
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            speed_Z_flag_down = false;
-        }
-    }
+        walk_right = true;  
+    } else walk_right = false; 
 
 }
 
