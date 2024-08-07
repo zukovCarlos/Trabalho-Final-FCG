@@ -183,9 +183,13 @@ float g_ScreenRatio = 1.0f;
 float g_AngleX = 0.0f;
 float g_AngleY = 0.0f;
 float g_AngleZ = 0.0f;
-float position_X = 0.0f;
-float position_X_inc = 0.0f;
-float speed = 0.01f;
+float speed_X = 0.0f;
+float speed_Z = 0.0f;
+float speed = 0.001f;
+bool  speed_X_flag_left = false;
+bool  speed_X_flag_right = false;
+bool  speed_Z_flag_up = false;
+bool  speed_Z_flag_down = false;
 
 // "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
 // pressionado no momento atual. Veja função MouseButtonCallback().
@@ -417,13 +421,39 @@ int main(int argc, char* argv[])
         // Desenhamos o modelo da terra
         model = Matrix_Translate(0.0f,-30.0f,0.0f)
               * Matrix_Rotate_Z(0.5f)
-              * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
+              * Matrix_Rotate_Y((float)glfwGetTime() * 0.02f)
               * Matrix_Scale(30.0f,30.0f,30.0f);
+              
+              
+        if(speed_X_flag_left)
+            speed_X += speed;
+        else if(!speed_X_flag_left)
+            speed_X = 0.0f;
+        if(speed_X_flag_right){
+            speed_X -= speed;
+            printf("%d", speed_X);
+        }
+        else if(!speed_X_flag_left)
+            speed_X = 0.0f;    
+        
+        if(speed_Z_flag_up)
+            speed_Z += speed;
+        else if(!speed_Z_flag_up)
+            speed_Z = 0.0f;
+        if(speed_Z_flag_down)
+            speed_Z -= speed;
+        else if(!speed_Z_flag_down)
+            speed_Z = 0.0f;
+
+        model = model
+              * Matrix_Rotate_X(speed_Z)
+              * Matrix_Rotate_Z(speed_X);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
 
-        model = Matrix_Rotate_X((float)glfwGetTime() * -0.05f)
+        // Desenhamos o ceu
+        model = Matrix_Translate(0.0f,1.0f,-4.0f)
               * Matrix_Rotate_Z(0.5f)
               * Matrix_Scale(1000.0f,1000.0f,1000.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -434,22 +464,14 @@ int main(int argc, char* argv[])
         glCullFace(GL_BACK);
         glDepthMask(GL_TRUE);
 
-        // Desenhamos o modelo do cachorro
-        if(position_X < position_X_inc){
-            position_X += speed;
-        }
-        if(position_X > position_X_inc){
-            position_X -= speed;
-        }
-
-        model = Matrix_Translate(position_X,0.0f,0.0f);
+        model = Matrix_Translate(0.0f,0.0f,0.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
         DrawVirtualObject("dog");
         DrawVirtualObject("eyes");
         DrawVirtualObject("face");
 
-        model = Matrix_Translate(position_X,0.0f,0.0f)
+        model = model
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
                 * Matrix_Scale(0.5f,0.5f,0.5f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -1184,26 +1206,55 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // O código abaixo implementa a seguinte lógica:
-    //   Se apertar tecla X       então g_AngleX += delta;
-    //   Se apertar tecla shift+X então g_AngleX -= delta;
-    //   Se apertar tecla Y       então g_AngleY += delta;
-    //   Se apertar tecla shift+Y então g_AngleY -= delta;
-    //   Se apertar tecla Z       então g_AngleZ += delta;
-    //   Se apertar tecla shift+Z então g_AngleZ -= delta;
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    if (key == GLFW_KEY_A)
     {
-        if(position_X_inc != 1.0f)
-            position_X_inc += 1.0f;
+        if (action == GLFW_PRESS)
+        {
+            speed_X_flag_left = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            speed_X_flag_left = false;
+        }
     }
 
-    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    if (key == GLFW_KEY_D)
     {
-        if(position_X_inc != -1.0f)
-            position_X_inc -= 1.0f;
+        if (action == GLFW_PRESS)
+        {
+            speed_X_flag_right = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            speed_X_flag_right = false;
+        }
+    }
+
+    if (key == GLFW_KEY_W)
+    {
+        if (action == GLFW_PRESS)
+        {
+            speed_Z_flag_up = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            speed_Z_flag_up = false;
+        }
+    }
+
+    if (key == GLFW_KEY_S)
+    {
+        if (action == GLFW_PRESS)
+        {
+            speed_Z_flag_down = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            speed_Z_flag_down = false;
+        }
     }
 
 }
