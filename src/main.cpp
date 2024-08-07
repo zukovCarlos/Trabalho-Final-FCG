@@ -428,14 +428,10 @@ int main(int argc, char* argv[])
               
         if(walk_left)
             speed_X += speed;
-        
         if(walk_right)
             speed_X -= speed;
-           
-        
         if(walk_up)
             speed_Z -= speed;
-        
         if(walk_down)
             speed_Z += speed;
         
