@@ -347,8 +347,7 @@ int main(int argc, char* argv[])
     glFrontFace(GL_CCW);
 
     glm::mat4 modelSphere = Matrix_Identity(); // Transformação identidade de modelagem
-    modelSphere = Matrix_Translate(0.0f,-30.0f,0.0f)
-                * Matrix_Scale(30.0f, 30.0f, 30.0f);
+    modelSphere =  Matrix_Rotate_X(0.5);
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
@@ -437,11 +436,14 @@ int main(int argc, char* argv[])
         if(!walk_down)
             if (speed_X < 0) speed_X += speed;
         printf("speed_X: %f speed_Z: %f \n", speed_X, speed_Z);
-        
-        modelSphere = modelSphere 
-                    * Matrix_Rotate_X(-speed_X/500)
-                    * Matrix_Rotate_Z(-speed_Z/500);
-        model = modelSphere * Matrix_Rotate_Y(currentFrame/100) * deltaSpeed;
+
+        //Matrix_Translate(0.0f,-31.0f,0.0f)
+             //   * Matrix_Scale(30.0f, 30.0f, 30.0f)
+        modelSphere = Matrix_Rotate_X(-speed_X/500)
+                    * Matrix_Rotate_Z(-speed_Z/500) 
+                    // Matrix_Rotate_Y(currentFrame/100) 
+                    * modelSphere;
+        model = Matrix_Translate(0.0f,-31.0f,0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere ;
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
