@@ -103,8 +103,8 @@ void main()
     else if ( object_id == DOG )
     {
 
-        U = texcoords.x;
-        V = texcoords.y;
+        U = 1 - texcoords.y;
+        V = 1 - texcoords.x;
         Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
     } else if(object_id == CEU)
     {

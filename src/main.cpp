@@ -183,13 +183,20 @@ float g_ScreenRatio = 1.0f;
 float g_AngleX = 0.0f;
 float g_AngleY = 0.0f;
 float g_AngleZ = 0.0f;
+
+// Velocidade do personagem e flags de movimento
+const float MAX_SPEED = 2.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
-float speed = 0.001f;
+float speed = 0.001f; 
 bool  walk_up = false;
 bool  walk_down = false;
 bool  walk_left = false;
 bool  walk_right = false;
+
+double deltaTime = 0.0f; // Variação de tempo entre quadros
+float lastFrame = 0.0f; // Tempo do último quadro
+float deltaSpeed = 0.0f; // Velocidade multiplicada pela variação de tempo
 
 // "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
 // pressionado no momento atual. Veja função MouseButtonCallback().
@@ -339,6 +346,9 @@ int main(int argc, char* argv[])
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
+    glm::mat4 modelSphere = Matrix_Identity(); // Transformação identidade de modelagem
+    modelSphere = Matrix_Translate(0.0f,-30.0f,0.0f)
+                * Matrix_Scale(30.0f, 30.0f, 30.0f);
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
@@ -385,26 +395,10 @@ int main(int argc, char* argv[])
         float nearplane = -0.1f;  // Posição do "near plane"
         float farplane  = -1000.0f; // Posição do "far plane"
 
-        if (g_UsePerspectiveProjection)
-        {
-            // Projeção Perspectiva.
-            // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
-            float field_of_view = 3.141592 / 3.0f;
-            projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
-        }
-        else
-        {
-            // Projeção Ortográfica.
-            // Para definição dos valores l, r, b, t ("left", "right", "bottom", "top"),
-            // PARA PROJEÇÃO ORTOGRÁFICA veja slides 219-224 do documento Aula_09_Projecoes.pdf.
-            // Para simular um "zoom" ortográfico, computamos o valor de "t"
-            // utilizando a variável g_CameraDistance.
-            float t = 1.5f*g_CameraDistance/2.5f;
-            float b = -t;
-            float r = t*g_ScreenRatio;
-            float l = -r;
-            projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
-        }
+        // Projeção Perspectiva.
+        // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
+        float field_of_view = 3.141592 / 3.0f;
+        projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
 
         glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
 
@@ -419,34 +413,48 @@ int main(int argc, char* argv[])
         #define CEU  2
         #define SHIP 3
 
-        // Desenhamos o modelo da terra
-        model = Matrix_Translate(0.0f,-30.0f,0.0f)
-              * Matrix_Rotate_Z(0.5f)
-              * Matrix_Rotate_Y((float)glfwGetTime() * 0.02f)
-              * Matrix_Scale(30.0f,30.0f,30.0f);
-              
-              
-        if(walk_left)
-            speed_X += speed;
-        if(walk_right)
-            speed_X -= speed;
-        if(walk_up)
-            speed_Z -= speed;
-        if(walk_down)
-            speed_Z += speed;
+        float currentFrame = (float)glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        deltaSpeed = deltaTime * speed;
         
-
-        model = model
-              * Matrix_Rotate_X(speed_Z)
-              * Matrix_Rotate_Z(speed_X);
+        // Desenhamos o modelo da terra    
+              
+        if (walk_left) 
+            if (speed_Z > -MAX_SPEED) speed_Z -= speed; 
+        if(!walk_left)
+            if (speed_Z < 0) speed_Z += speed;
+        if (walk_right) 
+            if (speed_Z < MAX_SPEED) speed_Z += speed;
+        if(!walk_right)
+            if (speed_Z > 0) speed_Z -= speed;
+        if (walk_up) 
+            if (speed_X < MAX_SPEED) speed_X += speed; 
+        if(!walk_up)
+            if (speed_X > 0) speed_X -= speed;  
+        if (walk_down) 
+            if (speed_X > -MAX_SPEED) speed_X -= speed; 
+        if(!walk_down)
+            if (speed_X < 0) speed_X += speed;
+        printf("speed_X: %f speed_Z: %f \n", speed_X, speed_Z);
+        
+        modelSphere = modelSphere 
+                    * Matrix_Rotate_X(-speed_X/500)
+                    * Matrix_Rotate_Z(-speed_Z/500);
+        model = modelSphere * Matrix_Rotate_Y(currentFrame/100) * deltaSpeed;
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
+        
 
+        model = Matrix_Identity();
         // Desenhamos o ceu
         model = Matrix_Translate(0.0f,1.0f,-4.0f)
-              * Matrix_Rotate_Z(0.5f)
-              * Matrix_Scale(1000.0f,1000.0f,1000.0f);
+              * Matrix_Scale(1000.0f,1000.0f,1000.0f)
+              * Matrix_Rotate_X(speed_X)
+              * Matrix_Rotate_Z(speed_Z)
+              * Matrix_Rotate_Y(-currentFrame/100) * deltaSpeed;
+              
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, CEU);
         glCullFace(GL_FRONT);
@@ -455,6 +463,7 @@ int main(int argc, char* argv[])
         glCullFace(GL_BACK);
         glDepthMask(GL_TRUE);
 
+        model = Matrix_Identity();
         model = Matrix_Translate(0.0f,0.0f,0.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
@@ -502,6 +511,8 @@ int main(int argc, char* argv[])
     // Fim do programa
     return 0;
 }
+
+
 
 // Função que carrega uma imagem para ser utilizada como textura
 void LoadTextureImage(const char* filename)
@@ -1199,22 +1210,18 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
 
-    float delta = 3.141592 / 16; // 22.5 graus, em radianos.
+    
 
     if (glfwGetKey(window,GLFW_KEY_W) == GLFW_PRESS){
         walk_up = true;    
     } else walk_up = false;  
-
-    if (glfwGetKey(window,GLFW_KEY_A) == GLFW_PRESS)
-    {
+    if (glfwGetKey(window,GLFW_KEY_A) == GLFW_PRESS){
         walk_left = true;
     } else walk_left = false;  
-    if (glfwGetKey(window,GLFW_KEY_S) == GLFW_PRESS)
-    {
+    if (glfwGetKey(window,GLFW_KEY_S) == GLFW_PRESS){
         walk_down = true;
     } else walk_down = false; 
-    if (glfwGetKey(window,GLFW_KEY_D) == GLFW_PRESS)
-    {
+    if (glfwGetKey(window,GLFW_KEY_D) == GLFW_PRESS){
         walk_right = true;  
     } else walk_right = false; 
 
