@@ -315,7 +315,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/map.jpg");      // TextureImage0
     LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
     LoadTextureImage("../../data/dog.png"); // TextureImage2
-    LoadTextureImage("../../data/metal.jpg");
+    LoadTextureImage("../../data/metal.jpg"); // TextureImage3
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -648,6 +648,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
     glUseProgram(0);
 }
 
