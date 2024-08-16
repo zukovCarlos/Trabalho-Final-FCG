@@ -212,14 +212,6 @@ float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
-// Variáveis que controlam rotação do antebraço
-float g_ForearmAngleZ = 0.0f;
-float g_ForearmAngleX = 0.0f;
-
-// Variáveis que controlam translação do torso
-float g_TorsoPositionX = 0.0f;
-float g_TorsoPositionY = 0.0f;
-
 // Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
 bool g_UsePerspectiveProjection = true;
 
@@ -316,6 +308,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
     LoadTextureImage("../../data/dog.png"); // TextureImage2
     LoadTextureImage("../../data/metal.jpg"); // TextureImage3
+    LoadTextureImage("../../data/eyes.png"); // TextureImage4
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -374,10 +367,15 @@ int main(int argc, char* argv[])
         // controladas pelo mouse do usuário. Veja as funções CursorPosCallback()
         // e ScrollCallback().
         float r = g_CameraDistance;
+        float y = r*sin(g_CameraPhi);
+        float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+        float x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
+        if (y < -1)
+            y = -1;
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c  = glm::vec4(0.0f,1.0f,-4.0f,1.0f); // Ponto "c", centro da câmera
+        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
         glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
@@ -411,6 +409,8 @@ int main(int argc, char* argv[])
         #define DOG  1
         #define CEU  2
         #define SHIP 3
+        #define EYES 4
+        #define FACE 5
 
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -435,13 +435,12 @@ int main(int argc, char* argv[])
             if (speed_X > -MAX_SPEED) speed_X -= speed; 
         if(!walk_down)
             if (speed_X < 0) speed_X += speed;
-        printf("speed_X: %f speed_Z: %f \n", speed_X, speed_Z);
+        //printf("speed_X: %f speed_Z: %f \n", speed_X, speed_Z);
 
         //Matrix_Translate(0.0f,-31.0f,0.0f)
              //   * Matrix_Scale(30.0f, 30.0f, 30.0f)
-        modelSphere = Matrix_Rotate_X(-speed_X/500)
+        modelSphere = Matrix_Rotate_X(-speed_X/500) 
                     * Matrix_Rotate_Z(-speed_Z/500) 
-                    // Matrix_Rotate_Y(currentFrame/100) 
                     * modelSphere;
         model = Matrix_Translate(0.0f,-31.0f,0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere ;
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -470,7 +469,11 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
         DrawVirtualObject("dog");
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, EYES);
         DrawVirtualObject("eyes");
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, FACE);
         DrawVirtualObject("face");
 
         model = model
@@ -651,6 +654,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
     glUseProgram(0);
 }
 
@@ -1152,9 +1156,7 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
     
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_ForearmAngleZ -= 0.01f*dx;
-        g_ForearmAngleX += 0.01f*dy;
+       
     
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
@@ -1167,10 +1169,6 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_TorsoPositionX += 0.01f*dx;
-        g_TorsoPositionY -= 0.01f*dy;
     
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.

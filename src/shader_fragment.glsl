@@ -23,6 +23,8 @@ uniform mat4 projection;
 #define DOG    1
 #define CEU    2
 #define SHIP   3
+#define EYES   4
+#define FACE   5
 
 uniform int object_id;
 
@@ -35,6 +37,7 @@ uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
+uniform sampler2D TextureImage4;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -102,9 +105,8 @@ void main()
     }
     else if ( object_id == DOG )
     {
-
-        U = 1 - texcoords.y;
-        V = 1 - texcoords.x;
+        U = texcoords.x;
+        V = 1 - texcoords.y;
         Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
     } else if(object_id == CEU)
     {
@@ -126,7 +128,12 @@ void main()
         U = texcoords.x;
         V = texcoords.y;
         Kd0 = texture(TextureImage3, vec2(U,V)).rgb;
+    } else if(object_id == EYES){
+        U = 1 - texcoords.x;
+        V = 1 - texcoords.y;
+        Kd0 = texture(TextureImage4, vec2(U,V)).rgb;
     }
+
 
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
