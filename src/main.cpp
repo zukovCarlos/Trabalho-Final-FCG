@@ -450,11 +450,7 @@ int main(int argc, char* argv[])
 
         model = Matrix_Identity();
         // Desenhamos o ceu
-        model = Matrix_Translate(0.0f,1.0f,-4.0f)
-              * Matrix_Scale(1000.0f,1000.0f,1000.0f)
-              * Matrix_Rotate_X(speed_X)
-              * Matrix_Rotate_Z(speed_Z)
-              * Matrix_Rotate_Y(-currentFrame/100) * deltaSpeed;
+        model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
               
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, CEU);
