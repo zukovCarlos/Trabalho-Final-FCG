@@ -106,6 +106,8 @@ struct ObjModel
     }
 };
 
+// Funcoes novas
+void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position);
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -226,6 +228,7 @@ GLint g_projection_uniform;
 GLint g_object_id_uniform;
 GLint g_bbox_min_uniform;
 GLint g_bbox_max_uniform;
+GLint g_light_uniform;
 
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
@@ -370,8 +373,11 @@ int main(int argc, char* argv[])
         float y = r*sin(g_CameraPhi);
         float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
         float x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
-        if (y < -1)
+        if (y < -1) // mantem a camera acima do chao
             y = -1;
+
+        // Define a posicao da luz e a rotacao dela para sincronizar com a rotacao da terra
+        glm::vec4 light_position = glm::vec4(50.0f, 50.0f, 50.0f, 1.0f);
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
@@ -435,23 +441,21 @@ int main(int argc, char* argv[])
             if (speed_X > -MAX_SPEED) speed_X -= speed; 
         if(!walk_down)
             if (speed_X < 0) speed_X += speed;
-        //printf("speed_X: %f speed_Z: %f \n", speed_X, speed_Z);
-
-        //Matrix_Translate(0.0f,-31.0f,0.0f)
-             //   * Matrix_Scale(30.0f, 30.0f, 30.0f)
+        
         modelSphere = Matrix_Rotate_X(-speed_X/500) 
                     * Matrix_Rotate_Z(-speed_Z/500) 
                     * modelSphere;
+         
         model = Matrix_Translate(0.0f,-31.0f,0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere ;
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
-        
 
         model = Matrix_Identity();
         // Desenhamos o ceu
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
               
+
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, CEU);
         glCullFace(GL_FRONT);
@@ -459,6 +463,10 @@ int main(int argc, char* argv[])
         DrawVirtualObject("bola");
         glCullFace(GL_BACK);
         glDepthMask(GL_TRUE);
+
+        // Atualiza a posicao da luz baseado na rotacao da terra
+        updateLightPosition(modelSphere, light_position);
+
 
         model = Matrix_Identity();
         model = Matrix_Translate(0.0f,0.0f,0.0f);
@@ -511,6 +519,12 @@ int main(int argc, char* argv[])
 
     // Fim do programa
     return 0;
+}
+
+void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position){
+    light_position = rotationMatrix *light_position;
+    printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
+    glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
 }
 
 
@@ -643,6 +657,7 @@ void LoadShadersFromFiles()
     g_object_id_uniform  = glGetUniformLocation(g_GpuProgramID, "object_id"); // Variável "object_id" em shader_fragment.glsl
     g_bbox_min_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_min");
     g_bbox_max_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_max");
+    g_light_uniform      = glGetUniformLocation(g_GpuProgramID, "light_position");
 
     // Variáveis em "shader_fragment.glsl" para acesso das imagens de textura
     glUseProgram(g_GpuProgramID);
