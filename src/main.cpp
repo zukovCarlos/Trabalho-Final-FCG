@@ -396,7 +396,7 @@ int main(int argc, char* argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -1000.0f; // Posição do "far plane"
+        float farplane  = -1500.0f; // Posição do "far plane"
 
         // Projeção Perspectiva.
         // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
@@ -467,7 +467,6 @@ int main(int argc, char* argv[])
         // Atualiza a posicao da luz baseado na rotacao da terra
         updateLightPosition(modelSphere, light_position);
 
-
         model = Matrix_Identity();
         model = Matrix_Translate(0.0f,0.0f,0.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -523,7 +522,7 @@ int main(int argc, char* argv[])
 
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position){
     light_position = rotationMatrix *light_position;
-    printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
+    //printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
     glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
 }
 
