@@ -19,12 +19,14 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
-#define SPHERE 0
-#define DOG    1
-#define CEU    2
-#define SHIP   3
-#define EYES   4
-#define FACE   5
+#define SPHERE   0
+#define DOG      1
+#define CEU      2
+#define SHIP     3
+#define EYES     4
+#define FACE     5
+#define ASTEROID 6
+#define GLASS    7
 
 uniform int object_id;
 
@@ -38,6 +40,7 @@ uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
+uniform sampler2D TextureImage6;
 
 // Posicao da luz
 uniform vec4 light_position;
@@ -90,6 +93,8 @@ void main()
     // Espectro da luz ambiente
     vec3 Ia = vec3(0.2, 0.2, 0.2); // Espectro da luz ambiente
 
+
+    color.a = 1;
     if ( object_id == SPHERE )
     {
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
@@ -120,7 +125,6 @@ void main()
         q = 1.0;
     } else if(object_id == CEU)
     {
-        
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
         float ro = 1;
         vec4 p_ = bbox_center + (position_model - bbox_center)/ro * length(position_model - bbox_center);
@@ -132,11 +136,11 @@ void main()
         V = (phi + (M_PI/2))/M_PI;
         Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
         
-
+        l = normalize(p - light_position); // enjambração para iluminação "fantasia" do céu
         
-        Ia = vec3(0.0, 0.0, 0.3);
+        Ia = vec3(0.05, 0.05, 0.05);
         Ks = vec3(0.0,0.0,0.0);
-        Ka = vec3(0.0,0.0,0.3);
+        Ka = vec3(0.05,0.05,0.05);
         q = 1.0;
     } else if(object_id == SHIP)
     {
@@ -155,6 +159,15 @@ void main()
         Ks = vec3(0.0,0.0,0.0);
         Ka = vec3(0.0,0.0,0.0);
         q = 1.0;
+    } else if(object_id == GLASS){
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage6, vec2(U,V)).rgb;
+
+        Ks = vec3(0.9,0.9,0.9);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
+        color.a = 0.5;
     }
     
 
@@ -181,7 +194,7 @@ void main()
     //    suas distâncias para a câmera (desenhando primeiro objetos
     //    transparentes que estão mais longe da câmera).
     // Alpha default = 1 = 100% opaco = 0% transparente
-    color.a = 1;
+    
 
     // Cor final com correção gamma, considerando monitor sRGB.
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas

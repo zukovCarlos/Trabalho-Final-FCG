@@ -312,6 +312,8 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/dog.png"); // TextureImage2
     LoadTextureImage("../../data/metal.jpg"); // TextureImage3
     LoadTextureImage("../../data/eyes.png"); // TextureImage4
+    LoadTextureImage("../../data/glass.jpg"); // TextureImage5
+    LoadTextureImage("../../data/glass.jpg"); // TextureImage6
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -325,6 +327,10 @@ int main(int argc, char* argv[])
     ObjModel shipmodel("../../data/ship.obj");
     ComputeNormals(&shipmodel);
     BuildTrianglesAndAddToVirtualScene(&shipmodel);
+
+    ObjModel vidromodel("../../data/vidro.obj");
+    ComputeNormals(&vidromodel);
+    BuildTrianglesAndAddToVirtualScene(&vidromodel);
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -417,6 +423,8 @@ int main(int argc, char* argv[])
         #define SHIP 3
         #define EYES 4
         #define FACE 5
+        #define ASTEROID 6
+        #define GLASS 7
 
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -468,7 +476,7 @@ int main(int argc, char* argv[])
         updateLightPosition(modelSphere, light_position);
 
         model = Matrix_Identity();
-        model = Matrix_Translate(0.0f,0.0f,0.0f);
+        
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
         DrawVirtualObject("dog");
@@ -480,11 +488,22 @@ int main(int argc, char* argv[])
         DrawVirtualObject("face");
 
         model = model
+                * Matrix_Translate(0.0f,0.0f,0.1f)
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
-                * Matrix_Scale(0.5f,0.5f,0.5f);
+                * Matrix_Scale(0.6f,0.6f,0.6f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, SHIP);
-        DrawVirtualObject("ship");    
+        DrawVirtualObject("ship");
+
+        model = model 
+                * Matrix_Translate(0.0f,-0.4f,0.0f)
+                * Matrix_Scale(1.6f,2.0f,1.6f)
+                * Matrix_Rotate_Y(1.2f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, GLASS);
+        DrawVirtualObject("vidro");    
 
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
@@ -665,6 +684,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
     glUseProgram(0);
 }
 
