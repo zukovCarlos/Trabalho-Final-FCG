@@ -40,6 +40,7 @@ uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
+uniform sampler2D TextureImage5;
 uniform sampler2D TextureImage6;
 
 // Posicao da luz
@@ -155,7 +156,6 @@ void main()
         U = 1 - texcoords.x;
         V = 1 - texcoords.y;
         Kd0 = texture(TextureImage4, vec2(U,V)).rgb;
-
         Ks = vec3(0.0,0.0,0.0);
         Ka = vec3(0.0,0.0,0.0);
         q = 1.0;
@@ -168,19 +168,21 @@ void main()
         Ka = vec3(0.0,0.0,0.0);
         q = 1.0;
         color.a = 0.5;
+    } else if(object_id == ASTEROID){
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage5, vec2(U,V)).rgb;
     }
+
+
+
+    // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
     
 
-    // Termo de iluminação de lambert (difuso!)
-    vec3 lambert_diffuse_term = Kd0 * I * (max(0,dot(n,l)) + 0.01);
+    // Equação de Iluminação
+    float lambert = max(0,dot(n,l));
 
-    // Termo de iluminação ambiente
-    vec3 ambient_term = Ka * Ia;
-
-    // Termo especular utilizando o modelo de iluminação de Phong
-    vec3 phong_specular_term  = Ks * I * pow(max(dot(r,v),0 ),q) * max(dot(n,l),0); // PREENCH AQUI o termo especular de Phong
-
-    color.rgb = lambert_diffuse_term + ambient_term + phong_specular_term;
+    color.rgb = Kd0 * (lambert + 0.01);
 
     // NOTE: Se você quiser fazer o rendering de objetos transparentes, é
     // necessário:
