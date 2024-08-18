@@ -189,10 +189,10 @@ float g_AngleZ = 0.0f;
 float pi = 3.14159265359f;
 
 // Velocidade do personagem e flags de movimento
-const float MAX_SPEED = 2.0f;
+const float MAX_SPEED = 1.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
-float speed = 0.001f;
+float speed = 0.02f;
 bool walk_up = false;
 bool walk_down = false;
 bool walk_left = false;
@@ -465,16 +465,33 @@ int main(int argc, char *argv[])
             if (speed_X < 0)
                 speed_X += speed;
 
+        // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X / 500) * Matrix_Rotate_Z(-speed_Z / 500) * modelSphere;
 
         model = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
-
-        model = Matrix_Identity();
+        
+        int i = 0;
+        for (i=0; i<10; i++){
+            // Desenho do asteroide
+            model =
+                Matrix_Translate(0.0f, -31.0f, 0.0f) 
+                * modelSphere 
+                * Matrix_Rotate_Z((float)glfwGetTime() * i/10.0)
+                * Matrix_Rotate_X((float)glfwGetTime() * i/9.0)
+                * Matrix_Translate(0.0f, 31.0f, 0.0f);
+                    // * Matrix_Scale(10.0f,10.0f,10.0f);
+                    
+            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+            glUniform1i(g_object_id_uniform, ASTEROID);
+            DrawVirtualObject("Asteroid_01");
+        }
 
         // Desenho do ceu
+
+        model = Matrix_Identity();
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
               
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -501,16 +518,16 @@ int main(int argc, char *argv[])
         glUniform1i(g_object_id_uniform, FACE);
         DrawVirtualObject("face");
 
+
+
         // Desenho da nave
         model = model
                 * Matrix_Translate(0.0f,0.0f,0.1f)
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
                 * Matrix_Scale(0.6f,0.6f,0.6f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model)); 
         glUniform1i(g_object_id_uniform, SHIP);
         DrawVirtualObject("ship");
-
-        PushMatrix(model);
 
         // Desenho do vidro
         model = model 
@@ -523,16 +540,6 @@ int main(int argc, char *argv[])
         glUniform1i(g_object_id_uniform, GLASS);
         DrawVirtualObject("vidro");    
 
-        PopMatrix(model);
-
-        // Desenho do asteroide
-        model = model
-                * Matrix_Translate(0.0f,0.0f,0.1f)
-                * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
-                * Matrix_Scale(0.6f,0.6f,0.6f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, ASTEROID);
-        DrawVirtualObject("Asteroid_01");
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
