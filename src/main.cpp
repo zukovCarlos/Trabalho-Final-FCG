@@ -312,7 +312,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/dog.png"); // TextureImage2
     LoadTextureImage("../../data/metal.jpg"); // TextureImage3
     LoadTextureImage("../../data/eyes.png"); // TextureImage4
-    LoadTextureImage("../../data/glass.jpg"); // TextureImage5
+    LoadTextureImage("../../data/asteroid.jpg"); // TextureImage5
     LoadTextureImage("../../data/glass.jpg"); // TextureImage6
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
@@ -331,6 +331,11 @@ int main(int argc, char* argv[])
     ObjModel vidromodel("../../data/vidro.obj");
     ComputeNormals(&vidromodel);
     BuildTrianglesAndAddToVirtualScene(&vidromodel);
+
+    ObjModel asteroidmodel("../../data/asteroid.obj");
+    ComputeNormals(&asteroidmodel);
+    BuildTrianglesAndAddToVirtualScene(&asteroidmodel);
+
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -450,6 +455,8 @@ int main(int argc, char* argv[])
         if(!walk_down)
             if (speed_X < 0) speed_X += speed;
         
+
+        // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X/500) 
                     * Matrix_Rotate_Z(-speed_Z/500) 
                     * modelSphere;
@@ -460,10 +467,10 @@ int main(int argc, char* argv[])
         DrawVirtualObject("bola");
 
         model = Matrix_Identity();
-        // Desenhamos o ceu
+
+        // Desenho do ceu
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
               
-
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, CEU);
         glCullFace(GL_FRONT);
@@ -475,6 +482,7 @@ int main(int argc, char* argv[])
         // Atualiza a posicao da luz baseado na rotacao da terra
         updateLightPosition(modelSphere, light_position);
 
+        // Desenho do dog
         model = Matrix_Identity();
         
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -487,6 +495,7 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, FACE);
         DrawVirtualObject("face");
 
+        // Desenho da nave
         model = model
                 * Matrix_Translate(0.0f,0.0f,0.1f)
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
@@ -495,6 +504,9 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, SHIP);
         DrawVirtualObject("ship");
 
+        PushMatrix(model);
+
+        // Desenho do vidro
         model = model 
                 * Matrix_Translate(0.0f,-0.4f,0.0f)
                 * Matrix_Scale(1.6f,2.0f,1.6f)
@@ -505,6 +517,16 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, GLASS);
         DrawVirtualObject("vidro");    
 
+        PopMatrix(model);
+
+        // Desenho do asteroide
+        model = model
+                * Matrix_Translate(0.0f,0.0f,0.1f)
+                * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
+                * Matrix_Scale(0.6f,0.6f,0.6f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, ASTEROID);
+        DrawVirtualObject("Asteroid_01");
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
@@ -684,6 +706,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
     glUseProgram(0);
 }

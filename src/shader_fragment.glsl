@@ -40,6 +40,7 @@ uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
+uniform sampler2D TextureImage5;
 uniform sampler2D TextureImage6;
 
 // Posicao da luz
@@ -168,6 +169,11 @@ void main()
         Ka = vec3(0.0,0.0,0.0);
         q = 1.0;
         color.a = 0.5;
+    } else if(object_id == ASTEROID){
+
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage5, vec2(U,V)).rgb;
     }
     
 
