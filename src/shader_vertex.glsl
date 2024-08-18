@@ -20,6 +20,11 @@ out vec4 position_model;
 out vec4 normal;
 out vec2 texcoords;
 
+// Modelo de gouraud onde a iluminacao é avaliada para cada vertice ao inves de cada pixel
+out vec4 gourardColor;
+
+#define ASTEROID 6
+
 void main()
 {
     // A variável gl_Position define a posição final de cada vértice

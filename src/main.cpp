@@ -312,6 +312,8 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/dog.png"); // TextureImage2
     LoadTextureImage("../../data/metal.jpg"); // TextureImage3
     LoadTextureImage("../../data/eyes.png"); // TextureImage4
+    LoadTextureImage("../../data/glass.jpg"); // TextureImage5
+    LoadTextureImage("../../data/glass.jpg"); // TextureImage6
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -325,6 +327,10 @@ int main(int argc, char* argv[])
     ObjModel shipmodel("../../data/ship.obj");
     ComputeNormals(&shipmodel);
     BuildTrianglesAndAddToVirtualScene(&shipmodel);
+
+    ObjModel vidromodel("../../data/vidro.obj");
+    ComputeNormals(&vidromodel);
+    BuildTrianglesAndAddToVirtualScene(&vidromodel);
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -396,7 +402,7 @@ int main(int argc, char* argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -1000.0f; // Posição do "far plane"
+        float farplane  = -1500.0f; // Posição do "far plane"
 
         // Projeção Perspectiva.
         // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
@@ -417,6 +423,8 @@ int main(int argc, char* argv[])
         #define SHIP 3
         #define EYES 4
         #define FACE 5
+        #define ASTEROID 6
+        #define GLASS 7
 
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -467,9 +475,8 @@ int main(int argc, char* argv[])
         // Atualiza a posicao da luz baseado na rotacao da terra
         updateLightPosition(modelSphere, light_position);
 
-
         model = Matrix_Identity();
-        model = Matrix_Translate(0.0f,0.0f,0.0f);
+        
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, DOG);
         DrawVirtualObject("dog");
@@ -481,11 +488,22 @@ int main(int argc, char* argv[])
         DrawVirtualObject("face");
 
         model = model
+                * Matrix_Translate(0.0f,0.0f,0.1f)
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
-                * Matrix_Scale(0.5f,0.5f,0.5f);
+                * Matrix_Scale(0.6f,0.6f,0.6f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, SHIP);
-        DrawVirtualObject("ship");    
+        DrawVirtualObject("ship");
+
+        model = model 
+                * Matrix_Translate(0.0f,-0.4f,0.0f)
+                * Matrix_Scale(1.6f,2.0f,1.6f)
+                * Matrix_Rotate_Y(1.2f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, GLASS);
+        DrawVirtualObject("vidro");    
 
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
@@ -523,7 +541,7 @@ int main(int argc, char* argv[])
 
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position){
     light_position = rotationMatrix *light_position;
-    printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
+    //printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
     glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
 }
 
@@ -666,6 +684,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
     glUseProgram(0);
 }
 

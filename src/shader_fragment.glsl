@@ -19,12 +19,14 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
-#define SPHERE 0
-#define DOG    1
-#define CEU    2
-#define SHIP   3
-#define EYES   4
-#define FACE   5
+#define SPHERE   0
+#define DOG      1
+#define CEU      2
+#define SHIP     3
+#define EYES     4
+#define FACE     5
+#define ASTEROID 6
+#define GLASS    7
 
 uniform int object_id;
 
@@ -38,6 +40,7 @@ uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
+uniform sampler2D TextureImage6;
 
 // Posicao da luz
 uniform vec4 light_position;
@@ -73,15 +76,28 @@ void main()
     // Vetor que define o sentido da câmera em relação ao ponto atual.
     vec4 v = normalize(camera_position - p);
 
+    // Vetor que define o sentido da reflexão especular ideal.
+    vec4 r = -l + 2 * n * dot(n,l);
+
     // Coordenadas de textura U e V
     float U = 0.0f;
     float V = 0.0f;
 
-    vec3 Kd0 = vec3(0.0f,0.0f,0.0f);
+    vec3 Kd0; // Refletância difusa
+    vec3 Ks; // Refletância especular
+    vec3 Ka; // Refletância ambiente
+    float q; // Expoente especular para o modelo de iluminação de Phong
+
+    // Espectro da fonte de iluminação
+    vec3 I = vec3(1.0,1.0,1.0); // Espectro da fonte de luz
+    // Espectro da luz ambiente
+    vec3 Ia = vec3(0.2, 0.2, 0.2); // Espectro da luz ambiente
+
+
+    color.a = 1;
     if ( object_id == SPHERE )
     {
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
-
         float ro = 1;
         vec4 p_ = bbox_center + (position_model - bbox_center)/ro * length(position_model - bbox_center);
         vec4 p_Vet = p_ - bbox_center;
@@ -92,48 +108,79 @@ void main()
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + (M_PI/2))/M_PI;
         Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+
+        Ks = vec3(0.05,0.05,0.05);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
+
     }
     else if ( object_id == DOG )
     {
         U = texcoords.x;
         V = 1 - texcoords.y;
         Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
+
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
     } else if(object_id == CEU)
     {
-        
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
-
         float ro = 1;
         vec4 p_ = bbox_center + (position_model - bbox_center)/ro * length(position_model - bbox_center);
         vec4 p_Vet = p_ - bbox_center;
-
         float theta = atan(p_Vet.x, p_Vet.z);
         float phi = asin(p_Vet.y/ro);
 
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + (M_PI/2))/M_PI;
         Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
-        l = normalize(p - light_position);
+        
+        l = normalize(p - light_position); // enjambração para iluminação "fantasia" do céu
+        
+        Ia = vec3(0.05, 0.05, 0.05);
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.05,0.05,0.05);
+        q = 1.0;
     } else if(object_id == SHIP)
     {
         U = texcoords.x;
         V = texcoords.y;
         Kd0 = texture(TextureImage3, vec2(U,V)).rgb;
+
+        Ks = vec3(0.7,0.7,0.7);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
     } else if(object_id == EYES){
         U = 1 - texcoords.x;
         V = 1 - texcoords.y;
         Kd0 = texture(TextureImage4, vec2(U,V)).rgb;
+
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
+    } else if(object_id == GLASS){
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage6, vec2(U,V)).rgb;
+
+        Ks = vec3(0.9,0.9,0.9);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 1.0;
+        color.a = 0.5;
     }
-
-
-
-    // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
     
 
-    // Equação de Iluminação
-    float lambert = max(0,dot(n,l));
+    // Termo de iluminação de lambert (difuso!)
+    vec3 lambert_diffuse_term = Kd0 * I * (max(0,dot(n,l)) + 0.01);
 
-    color.rgb = Kd0 * (lambert + 0.01);
+    // Termo de iluminação ambiente
+    vec3 ambient_term = Ka * Ia;
+
+    // Termo especular utilizando o modelo de iluminação de Phong
+    vec3 phong_specular_term  = Ks * I * pow(max(dot(r,v),0 ),q) * max(dot(n,l),0); // PREENCH AQUI o termo especular de Phong
+
+    color.rgb = lambert_diffuse_term + ambient_term + phong_specular_term;
 
     // NOTE: Se você quiser fazer o rendering de objetos transparentes, é
     // necessário:
@@ -147,7 +194,7 @@ void main()
     //    suas distâncias para a câmera (desenhando primeiro objetos
     //    transparentes que estão mais longe da câmera).
     // Alpha default = 1 = 100% opaco = 0% transparente
-    color.a = 1;
+    
 
     // Cor final com correção gamma, considerando monitor sRGB.
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
