@@ -48,6 +48,8 @@
 #include "utils.h"
 #include "matrices.h"
 
+const float SPEEDTHRESHOLD = 0.01f;
+
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
 struct ObjModel
@@ -108,6 +110,7 @@ struct ObjModel
 
 // Funcoes novas
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position);
+void updateSpeed();
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -180,6 +183,8 @@ std::stack<glm::mat4> g_MatrixStack;
 
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
 float g_ScreenRatio = 1.0f;
+int window_width = 800;
+int window_height = 600;
 
 // Ângulos de Euler que controlam a rotação de um dos cubos da cena virtual
 float g_AngleX = 0.0f;
@@ -264,7 +269,7 @@ int main(int argc, char *argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow *window;
-    window = glfwCreateWindow(1920, 1080, "SpaceDog", NULL, NULL);
+    window = glfwCreateWindow(window_width, window_height, "SpaceDog", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -293,7 +298,7 @@ int main(int argc, char *argv[])
     // redimensionada, por consequência alterando o tamanho do "framebuffer"
     // (região de memória onde são armazenados os pixels da imagem).
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    FramebufferSizeCallback(window, 1920, 1080); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
+    FramebufferSizeCallback(window, window_width, window_height); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     // Imprimimos no terminal informações sobre a GPU do sistema
     const GLubyte *vendor = glGetString(GL_VENDOR);
@@ -433,64 +438,41 @@ int main(int argc, char *argv[])
         #define ASTEROID 6
         #define GLASS 7
 
+        // Guarda informação em relação ao último frame, para manter a animação baseada no tempo
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
         deltaSpeed = deltaTime * speed;
 
-        // Desenhamos o modelo da terra
-
-        if (walk_left)
-            if (speed_Z > -MAX_SPEED)
-                speed_Z -= speed;
-        if (!walk_left)
-            if (speed_Z < 0)
-                speed_Z += speed;
-        if (walk_right)
-            if (speed_Z < MAX_SPEED)
-                speed_Z += speed;
-        if (!walk_right)
-            if (speed_Z > 0)
-                speed_Z -= speed;
-        if (walk_up)
-            if (speed_X < MAX_SPEED)
-                speed_X += speed;
-        if (!walk_up)
-            if (speed_X > 0)
-                speed_X -= speed;
-        if (walk_down)
-            if (speed_X > -MAX_SPEED)
-                speed_X -= speed;
-        if (!walk_down)
-            if (speed_X < 0)
-                speed_X += speed;
-
+        
+        // Função para atualizar a velocidade do catioro
+        updateSpeed();
+        
         // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X / 500) * Matrix_Rotate_Z(-speed_Z / 500) * modelSphere;
-
         model = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
-        
-        int i = 0;
-        for (i=0; i<10; i++){
+
+
+        glm::mat4 modelEarthCenter = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Identity();
+        for (int i = 0; i < 10; i++){
             // Desenho do asteroide
-            model =
-                Matrix_Translate(0.0f, -31.0f, 0.0f) 
+            model = modelEarthCenter
                 * modelSphere 
                 * Matrix_Rotate_Z((float)glfwGetTime() * i/10.0)
                 * Matrix_Rotate_X((float)glfwGetTime() * i/9.0)
                 * Matrix_Translate(0.0f, 31.0f, 0.0f);
-                    // * Matrix_Scale(10.0f,10.0f,10.0f);
                     
             glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
             glUniform1i(g_object_id_uniform, ASTEROID);
             DrawVirtualObject("Asteroid_01");
         }
 
-        // Desenho do ceu
 
+
+        // Desenho do ceu
         model = Matrix_Identity();
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
               
@@ -573,11 +555,60 @@ int main(int argc, char *argv[])
     // Fim do programa
     return 0;
 }
+// ---------------------------------------------------------------------------
+// FUNCOES PARA O TRABALHO
+// ---------------------------------------------------------------------------
 
+// Função para atualizar a posição da luz baseado na rotação da terra para manter ela fixa
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position){
     light_position = rotationMatrix *light_position;
     //printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
     glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
+}
+
+// Função para atualizar a velocidade do personagem baseado nas teclas pressionadas.
+// Chamada a cada atualização de quadro e possui um teste para evitar que a velocidade ultrapasse um limite.
+void updateSpeed(){
+    if (walk_left)
+        if (speed_Z > -MAX_SPEED)
+            speed_Z -= speed;
+    if (!walk_left)
+        if (speed_Z < 0){
+            speed_Z += speed;
+            if (fabs(speed_Z) < SPEEDTHRESHOLD)
+                speed_Z = 0;
+        }
+            
+    if (walk_right)
+        if (speed_Z < MAX_SPEED)
+            speed_Z += speed;
+    if (!walk_right)
+        if (speed_Z > 0){
+            speed_Z -= speed;
+            if (fabs(speed_Z) < SPEEDTHRESHOLD)
+                speed_Z = 0;
+        }
+            
+    if (walk_up)
+        if (speed_X < MAX_SPEED)
+            speed_X += speed;
+    if (!walk_up)
+        if (speed_X > 0){
+            speed_X -= speed;
+            if (fabs(speed_X) < SPEEDTHRESHOLD)
+                speed_X = 0;
+        }
+
+    if (walk_down)
+        if (speed_X > -MAX_SPEED)
+            speed_X -= speed;
+    if (!walk_down)
+        if (speed_X < 0){
+            speed_X += speed;
+            if (fabs(speed_X) < SPEEDTHRESHOLD)
+                speed_X = 0;
+        }
+            
 }
 
 // Função que carrega uma imagem para ser utilizada como textura
