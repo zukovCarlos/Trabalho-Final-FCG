@@ -1,12 +1,14 @@
-struct SceneObject
-{
-    std::string name;              // Nome do objeto
-    size_t first_index;            // Índice do primeiro vértice dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
-    size_t num_indices;            // Número de índices do objeto dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
-    GLenum rendering_mode;         // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
-    GLuint vertex_array_object_id; // ID do VAO onde estão armazenados os atributos do modelo
-    glm::vec3 bbox_min;            // Axis-Aligned Bounding Box do objeto
-    glm::vec3 bbox_max;
-};
+#include "collisions.h"
 
-bool CubeCube()
+bool CubePoint(glm::vec3 bbox_min, glm::vec3 bbox_max){
+    if(0 >= bbox_min.x && 0 <= bbox_max.x){
+        if(0 >= bbox_min.y && 0 <= bbox_max.y){
+            if(0 >= bbox_min.z && 0 <= bbox_max.z){
+                printf("Colidiu -> asteoide.min x: %f y: %f z: %f\n",bbox_min.x, bbox_min.y, bbox_min.z);
+                printf("Colidiu -> asteoide.max x: %f y: %f z: %f\n",bbox_max.x, bbox_max.y, bbox_max.z);
+                return true;
+            }
+        }
+    }
+    return false;
+}

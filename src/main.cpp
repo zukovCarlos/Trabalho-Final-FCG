@@ -7,7 +7,6 @@
 //
 //                   LABORATÓRIO 5
 //
-
 // Arquivos "headers" padrões de C podem ser incluídos em um
 // programa C++, sendo necessário somente adicionar o caractere
 // "c" antes de seu nome, e remover o sufixo ".h". Exemplo:
@@ -49,6 +48,7 @@
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
+#include "collisions.h"
 
 const float SPEEDTHRESHOLD = 0.01f;
 
@@ -113,6 +113,8 @@ struct ObjModel
 // Funcoes novas
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position);
 void updateSpeed();
+void printBBOX(glm::vec3 bbox_min, glm::vec3 bbox_max);
+glm::vec3 atualizaBBOX(glm::vec3 bbox, glm::mat4 model);
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -158,19 +160,6 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode
 void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
 void CursorPosCallback(GLFWwindow *window, double xpos, double ypos);
 void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
-
-// Definimos uma estrutura que armazenará dados necessários para renderizar
-// cada objeto da cena virtual.
-struct SceneObject
-{
-    std::string name;              // Nome do objeto
-    size_t first_index;            // Índice do primeiro vértice dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
-    size_t num_indices;            // Número de índices do objeto dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
-    GLenum rendering_mode;         // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
-    GLuint vertex_array_object_id; // ID do VAO onde estão armazenados os atributos do modelo
-    glm::vec3 bbox_min;            // Axis-Aligned Bounding Box do objeto
-    glm::vec3 bbox_max;
-};
 
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
@@ -536,6 +525,10 @@ int main(int argc, char *argv[])
             glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
             glUniform1i(g_object_id_uniform, ASTEROID);
             DrawVirtualObject("Asteroid_01");
+
+
+            CubePoint(atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_min, model), atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_max, model));
+            //printBBOX(g_VirtualScene["Asteroid_01"].bbox_min, g_VirtualScene["Asteroid_01"].bbox_max);
         }
 
         // Desenho do ceu
@@ -685,6 +678,16 @@ void updateSpeed(){
                 speed_X = 0;
         }
             
+}
+
+void printBBOX(glm::vec3 bbox_min, glm::vec3 bbox_max){
+    printf("BBOX_MIN: %f %f %f\n", bbox_min.x, bbox_min.y, bbox_min.z);
+    printf("BBOX_MAX: %f %f %f\n", bbox_max.x, bbox_max.y, bbox_max.z);
+}
+
+glm::vec3 atualizaBBOX(glm::vec3 bbox, glm::mat4 model){
+    glm::vec4 bboxAux = model * glm::vec4(bbox, 1.0f);
+    return glm::vec3(bboxAux.x, bboxAux.y, bboxAux.z);
 }
 
 // Função que carrega uma imagem para ser utilizada como textura
