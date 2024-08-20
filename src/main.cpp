@@ -196,18 +196,18 @@ float g_AngleZ = 0.0f;
 float pi = 3.14159265359f;
 
 // Velocidade do personagem e flags de movimento
-const float MAX_SPEED = 1.0f;
+const float MAX_SPEED = 3.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
-float speed = 0.02f;
-float speedFreio = 0.01f;
+float speed = 0.04f;
+float speedFreio = 0.005f;
 
 bool walk_up = false;
 bool walk_down = false;
 bool walk_left = false;
 bool walk_right = false;
 
-double deltaTime = 0.0f; // Variação de tempo entre quadros
+float deltaTime = 0.0f; // Variação de tempo entre quadros (ERA DOUBLE)
 float lastFrame = 0.0f;  // Tempo do último quadro
 float deltaSpeed = 0.0f; // Velocidade multiplicada pela variação de tempo
 
@@ -223,7 +223,15 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // renderização.
 float g_CameraTheta = 0.0f;    // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;      // Ângulo em relação ao eixo Y
-float g_CameraDistance = 35.0f; // Distância da câmera para a origem
+float g_CameraDistance = 3.50f; // Distância da câmera para a origem
+
+// Para a câmera em primeira pessoa
+int tipoCamera = 0; // 0 = Look At, 1 = Primeira Pessoa
+glm::vec4 camera_w_vector;
+glm::vec4 camera_u_vector;
+glm::vec4 camera_position_c; // Ponto "c", centro da câmera
+glm::vec4 camera_view_vector;
+glm::vec4 camera_up_vector;
 
 // Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
 bool g_UsePerspectiveProjection = true;
@@ -383,7 +391,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < num_asteroids; i++)
     {   
         rand_list[i] = dis(gen) / 1000.0f;
-        printf("%f\n", rand_list[i]);
     }
 
     while (!glfwWindowShouldClose(window))
@@ -420,17 +427,46 @@ int main(int argc, char *argv[])
         // Define a posicao da luz e a rotacao dela para sincronizar com a rotacao da terra
         glm::vec4 light_position = glm::vec4(50.0f, 50.0f, 50.0f, 1.0f);
 
-        // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
-        // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c = glm::vec4(x, y, z, 1.0f);             // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);      // Ponto "l", para onde a câmera (look-at) estará sempre olhando
-        glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
+        // Guarda informação em relação ao último frame, para manter a animação baseada no tempo
+        float currentFrame = (float)glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        deltaSpeed = deltaTime * speed;
+
         glm::vec4 camera_up_vector = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);     // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        glm::vec4 camera_view_vector;
+        if(tipoCamera == 1) {
+            camera_position_c  = glm::vec4(0 , 0.8f, 0.4f, 1.0f); // Ponto "c", centro da câmera
+            camera_view_vector = glm::vec4(0 , -0.9f, 1.6f, 0.0f); // Vetor "view", sentido para onde a câmera está virada
+            printf("camera_view_vector: %f %f %f\n", x, y, z);
+            
+            camera_w_vector = - camera_view_vector/norm(camera_view_vector);
+            camera_u_vector = crossproduct(camera_up_vector, camera_w_vector)/norm(crossproduct(camera_up_vector, camera_w_vector));  
+        
+            glm::vec4 movement_vector_EsqDir = camera_u_vector * speed * deltaTime;
+            glm::vec4 movement_vector_FreAtr = camera_view_vector * speed * deltaTime;
 
-        // Computamos a matriz "View" utilizando os parâmetros da câmera para
-        // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
+            if(walk_up)
+                camera_position_c -= movement_vector_FreAtr;
+            if(walk_down)
+                camera_position_c += movement_vector_FreAtr;
+            if(walk_left)
+                camera_position_c -= movement_vector_EsqDir;
+            if(walk_right)
+                camera_position_c += movement_vector_EsqDir;
+        }
+        else {
+            // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
+            // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
+            camera_position_c = glm::vec4(x, y, z, 1.0f);             // Ponto "c", centro da câmera
+            glm::vec4 camera_lookat_l = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);      // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+            camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
+
+            // Computamos a matriz "View" utilizando os parâmetros da câmera para
+            // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
+        }
+
         glm::mat4 view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
-
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
 
@@ -463,12 +499,6 @@ int main(int argc, char *argv[])
         #define SUN      8
         #define MOON     9
 
-        // Guarda informação em relação ao último frame, para manter a animação baseada no tempo
-        float currentFrame = (float)glfwGetTime();
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
-        printf("deltaTime: %f\n", lastFrame);
-        deltaSpeed = deltaTime * speed;
 
         // Função para atualizar a velocidade do catioro
         updateSpeed();
@@ -1336,6 +1366,14 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
         if (key == GLFW_KEY_0 + i && action == GLFW_PRESS && mod == GLFW_MOD_SHIFT)
             std::exit(100 + i);
     // ====================
+
+    if(key == GLFW_KEY_C && action == GLFW_PRESS)
+    {
+        if (tipoCamera == 0)
+            tipoCamera = 1;
+        else
+            tipoCamera = 0;
+    }
 
     // Se o usuário pressionar a tecla ESC, fechamos a janela.
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
