@@ -49,6 +49,8 @@ uniform vec4 light_position;
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
 
+in vec3 gourardColor;
+
 // Constantes
 #define M_PI   3.14159265358979323846
 #define M_PI_2 1.57079632679489661923
@@ -173,6 +175,7 @@ void main()
         V = texcoords.y;
         Kd0 = texture(TextureImage5, vec2(U,V)).rgb;
     }
+    
 
 
 
@@ -201,5 +204,8 @@ void main()
     // Cor final com correção gamma, considerando monitor sRGB.
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
     color.rgb = pow(color.rgb, vec3(1.0,1.0,1.0)/2.2);
+
+
+    
 } 
 

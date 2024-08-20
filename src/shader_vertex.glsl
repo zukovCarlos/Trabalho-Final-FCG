@@ -20,24 +20,17 @@ out vec4 position_model;
 out vec4 normal;
 out vec2 texcoords;
 
+uniform vec4 light_position;
+uniform sampler2D TextureImage5;
+uniform int object_id;
 // Modelo de gouraud onde a iluminacao é avaliada para cada vertice ao inves de cada pixel
-out vec4 gourardColor;
+out vec3 gourardColor;
 
 #define ASTEROID 6
 
 void main()
 {
-    // A variável gl_Position define a posição final de cada vértice
-    // OBRIGATORIAMENTE em "normalized device coordinates" (NDC), onde cada
-    // coeficiente estará entre -1 e 1 após divisão por w.
-    // Veja {+NDC2+}.
-    //
-    // O código em "main.cpp" define os vértices dos modelos em coordenadas
-    // locais de cada modelo (array model_coefficients). Abaixo, utilizamos
-    // operações de modelagem, definição da câmera, e projeção, para computar
-    // as coordenadas finais em NDC (variável gl_Position). Após a execução
-    // deste Vertex Shader, a placa de vídeo (GPU) fará a divisão por W. Veja
-    // slides 41-67 e 69-86 do documento Aula_09_Projecoes.pdf.
+    
 
     gl_Position = projection * view * model * model_coefficients;
 
@@ -68,5 +61,17 @@ void main()
 
     // Coordenadas de textura obtidas do arquivo OBJ (se existirem!)
     texcoords = texture_coefficients;
+
+    if(object_id == ASTEROID){
+        vec4 l = normalize(light_position - position_world);
+        vec4 n = normalize(normal);
+        float lambert = max(0, dot(n, l));
+        float U = texcoords.x;
+        float V = texcoords.y;
+        vec3 Kd0 = texture(TextureImage5, vec2(U,V)).rgb;
+
+        gourardColor = Kd0 * (lambert + 0.01);
+        gourardColor = pow(gourardColor.rgb, vec3(1.0,1.0,1.0)/2.2);
+    }
 }
 

@@ -198,6 +198,8 @@ const float MAX_SPEED = 1.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
 float speed = 0.02f;
+float speedFreio = 0.01f;
+
 bool walk_up = false;
 bool walk_down = false;
 bool walk_left = false;
@@ -429,32 +431,34 @@ int main(int argc, char *argv[])
         glUniformMatrix4fv(g_view_uniform, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(g_projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
 
-        #define BOLA 0
-        #define DOG  1
-        #define CEU  2
-        #define SHIP 3
-        #define EYES 4
-        #define FACE 5
+        #define BOLA     0
+        #define DOG      1
+        #define CEU      2
+        #define SHIP     3
+        #define EYES     4
+        #define FACE     5
         #define ASTEROID 6
-        #define GLASS 7
+        #define GLASS    7
+        #define SUN      8
+        #define MOON     9
 
         // Guarda informação em relação ao último frame, para manter a animação baseada no tempo
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        printf("deltaTime: %f\n", lastFrame);
         deltaSpeed = deltaTime * speed;
 
-        
         // Função para atualizar a velocidade do catioro
         updateSpeed();
-        
+
         // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X / 500) * Matrix_Rotate_Z(-speed_Z / 500) * modelSphere;
+        glm::mat4 modelSphereInverse = Matrix_Rotate_X(speed_X / 500) * Matrix_Rotate_Z(speed_Z / 500) * modelSphereInverse;
         model = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
         DrawVirtualObject("bola");
-
 
         glm::mat4 modelEarthCenter = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Identity();
         for (int i = 0; i < 10; i++){
@@ -469,8 +473,6 @@ int main(int argc, char *argv[])
             glUniform1i(g_object_id_uniform, ASTEROID);
             DrawVirtualObject("Asteroid_01");
         }
-
-
 
         // Desenho do ceu
         model = Matrix_Identity();
@@ -487,6 +489,12 @@ int main(int argc, char *argv[])
         // Atualiza a posicao da luz baseado na rotacao da terra
         updateLightPosition(modelSphere, light_position);
 
+        // Desenho do sol e da lua
+        model = Matrix_Translate(0.0f, -300.0f, -300.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, CEU);
+        DrawVirtualObject("bola");
+
         // Desenho do dog
         model = Matrix_Identity();
         
@@ -499,8 +507,6 @@ int main(int argc, char *argv[])
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, FACE);
         DrawVirtualObject("face");
-
-
 
         // Desenho da nave
         model = model
@@ -574,7 +580,7 @@ void updateSpeed(){
             speed_Z -= speed;
     if (!walk_left)
         if (speed_Z < 0){
-            speed_Z += speed;
+            speed_Z += speedFreio;
             if (fabs(speed_Z) < SPEEDTHRESHOLD)
                 speed_Z = 0;
         }
@@ -584,7 +590,7 @@ void updateSpeed(){
             speed_Z += speed;
     if (!walk_right)
         if (speed_Z > 0){
-            speed_Z -= speed;
+            speed_Z -= speedFreio;
             if (fabs(speed_Z) < SPEEDTHRESHOLD)
                 speed_Z = 0;
         }
@@ -594,7 +600,7 @@ void updateSpeed(){
             speed_X += speed;
     if (!walk_up)
         if (speed_X > 0){
-            speed_X -= speed;
+            speed_X -= speedFreio;
             if (fabs(speed_X) < SPEEDTHRESHOLD)
                 speed_X = 0;
         }
@@ -604,7 +610,7 @@ void updateSpeed(){
             speed_X -= speed;
     if (!walk_down)
         if (speed_X < 0){
-            speed_X += speed;
+            speed_X += speedFreio;
             if (fabs(speed_X) < SPEEDTHRESHOLD)
                 speed_X = 0;
         }
