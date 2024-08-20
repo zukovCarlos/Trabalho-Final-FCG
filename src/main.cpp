@@ -18,6 +18,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
+#include <random>
 
 // Headers abaixo são específicos de C++
 #include <map>
@@ -221,7 +223,7 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // renderização.
 float g_CameraTheta = 0.0f;    // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;      // Ângulo em relação ao eixo Y
-float g_CameraDistance = 3.5f; // Distância da câmera para a origem
+float g_CameraDistance = 35.0f; // Distância da câmera para a origem
 
 // Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
 bool g_UsePerspectiveProjection = true;
@@ -367,6 +369,25 @@ int main(int argc, char *argv[])
     modelSphere = Matrix_Rotate_X(0.5);
     glm::mat4 modelSphereInverse = Matrix_Identity(); // Transformação identidade de modelagem
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
+
+
+    std::random_device rd;  // Obtém uma semente aleatória a partir do dispositivo
+    std::mt19937 gen(rd()); // Inicializa o gerador Mersenne Twister com a semente
+
+    // Define o intervalo desejado [min, max]
+    std::uniform_int_distribution<> dis(1, 1000);
+    
+    // Numero de asteroides
+    int num_asteroids = 100;
+
+    float rand_list[num_asteroids];
+
+    for (int i = 0; i < num_asteroids; i++)
+    {   
+        rand_list[i] = dis(gen) / 1000.0f;
+        printf("%f\n", rand_list[i]);
+    }
+
     while (!glfwWindowShouldClose(window))
     {
         // Aqui executamos as operações de renderização
@@ -463,12 +484,22 @@ int main(int argc, char *argv[])
         DrawVirtualObject("bola");
 
         glm::mat4 modelEarthCenter = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Identity();
-        for (int i = 0; i < 10; i++){
+        for (int i = 0; i < num_asteroids; i++){
             // Desenho do asteroide
-            model = modelEarthCenter
-                * modelSphere 
-                * Matrix_Rotate_Z((float)glfwGetTime() * i/10.0)
-                * Matrix_Rotate_X((float)glfwGetTime() * i/9.0)
+            if (i%2 == 0)
+                model =
+                    modelEarthCenter
+                    * modelSphere
+                    * Matrix_Rotate_Z(((62*pi)/1000)*rand_list[i]*1000 + (float)glfwGetTime() * 0.05) // velocidade de rotacao do asteroide
+                    * Matrix_Rotate_X(((62*pi)/1000)*i + (float)glfwGetTime() * 0.05) // velocidade de rotacao do asteroide
+                    * Matrix_Translate(0.0f, 31.0f, 0.0f);
+                        // * Matrix_Scale(10.0f,10.0f,10.0f);
+            else
+            model =
+                Matrix_Translate(0.0f, -31.0f, 0.0f)
+                * modelSphere
+                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]*1000 + (float)glfwGetTime() * 0.1) // velocidade de rotacao do asteroide
+                * Matrix_Rotate_Z(((62*pi)/1000)*i + (float)glfwGetTime() * 0.1) // velocidade de rotacao do asteroide
                 * Matrix_Translate(0.0f, 31.0f, 0.0f);
                     
             glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
