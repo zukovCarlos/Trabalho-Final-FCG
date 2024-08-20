@@ -333,6 +333,7 @@ int main(int argc, char *argv[])
     LoadTextureImage("../../data/eyes.png"); // TextureImage4
     LoadTextureImage("../../data/asteroid.jpg"); // TextureImage5
     LoadTextureImage("../../data/glass.jpg"); // TextureImage6
+    LoadTextureImage("../../data/sun.png"); // TextureImage7
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/bola.obj");
@@ -374,6 +375,7 @@ int main(int argc, char *argv[])
 
     glm::mat4 modelSphere = Matrix_Identity(); // Transformação identidade de modelagem
     modelSphere = Matrix_Rotate_X(0.5);
+    glm::mat4 modelSphereInverse = Matrix_Identity(); // Transformação identidade de modelagem
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
 
 
@@ -473,7 +475,7 @@ int main(int argc, char *argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -1500.0f; // Posição do "far plane"
+        float farplane  = -2500.0f; // Posição do "far plane"
 
         // Projeção Perspectiva.
         // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
@@ -488,16 +490,16 @@ int main(int argc, char *argv[])
         glUniformMatrix4fv(g_view_uniform, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(g_projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
 
-        #define BOLA     0
-        #define DOG      1
-        #define CEU      2
-        #define SHIP     3
-        #define EYES     4
-        #define FACE     5
-        #define ASTEROID 6
-        #define GLASS    7
-        #define SUN      8
-        #define MOON     9
+        #define BOLA      0
+        #define DOG       1
+        #define CEU       2
+        #define SHIP      3
+        #define EYES      4
+        #define FACE      5
+        #define ASTEROID  6
+        #define GLASS     7
+        #define SUN       8
+        #define BLACKHOLE 9
 
 
         // Função para atualizar a velocidade do catioro
@@ -505,7 +507,8 @@ int main(int argc, char *argv[])
 
         // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X / 500) * Matrix_Rotate_Z(-speed_Z / 500) * modelSphere;
-        glm::mat4 modelSphereInverse = Matrix_Rotate_X(speed_X / 500) * Matrix_Rotate_Z(speed_Z / 500) * modelSphereInverse;
+        
+        modelSphereInverse = Matrix_Rotate_X(speed_X / 500) * Matrix_Rotate_Z(speed_Z / 500) * modelSphereInverse;
         model = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BOLA);
@@ -537,7 +540,7 @@ int main(int argc, char *argv[])
 
         // Desenho do ceu
         model = Matrix_Identity();
-        model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(1000.0f,1000.0f,1000.0f) * modelSphere;
+        model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(2000.0f,2000.0f,2000.0f) * modelSphere;
               
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, CEU);
@@ -550,11 +553,17 @@ int main(int argc, char *argv[])
         // Atualiza a posicao da luz baseado na rotacao da terra
         updateLightPosition(modelSphere, light_position);
 
-        // Desenho do sol e da lua
-        model = Matrix_Translate(0.0f, -300.0f, -300.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
+        // Desenho do sol e do buraco negro
+        model =  modelSphere * Matrix_Translate(0.0f, -700.0f, -20.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, CEU);
+        glUniform1i(g_object_id_uniform, BLACKHOLE); // buraco-negro
         DrawVirtualObject("bola");
+
+        model = modelSphere * Matrix_Translate(0.0f, 700.0f, 20.0f) * Matrix_Scale(100.0f, 100.0f, 100.0f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, SUN);   // sol
+        DrawVirtualObject("bola");
+
 
         // Desenho do dog
         model = Matrix_Identity();
@@ -815,6 +824,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage7"), 7);
     glUseProgram(0);
 }
 

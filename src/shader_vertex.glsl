@@ -21,12 +21,12 @@ out vec4 normal;
 out vec2 texcoords;
 
 uniform vec4 light_position;
-uniform sampler2D TextureImage5;
+uniform sampler2D TextureImage7;
 uniform int object_id;
 // Modelo de gouraud onde a iluminacao é avaliada para cada vertice ao inves de cada pixel
 out vec3 gourardColor;
 
-#define ASTEROID 6
+#define SUN 8
 
 void main()
 {
@@ -62,13 +62,13 @@ void main()
     // Coordenadas de textura obtidas do arquivo OBJ (se existirem!)
     texcoords = texture_coefficients;
 
-    if(object_id == ASTEROID){
+    if(object_id == SUN){
         vec4 l = normalize(light_position - position_world);
         vec4 n = normalize(normal);
         float lambert = max(0, dot(n, l));
         float U = texcoords.x;
         float V = texcoords.y;
-        vec3 Kd0 = texture(TextureImage5, vec2(U,V)).rgb;
+        vec3 Kd0 = texture(TextureImage7, vec2(U,V)).rgb;
 
         gourardColor = Kd0 * (lambert + 0.01);
         gourardColor = pow(gourardColor.rgb, vec3(1.0,1.0,1.0)/2.2);
