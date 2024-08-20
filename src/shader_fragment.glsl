@@ -19,14 +19,16 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
-#define SPHERE   0
-#define DOG      1
-#define CEU      2
-#define SHIP     3
-#define EYES     4
-#define FACE     5
-#define ASTEROID 6
-#define GLASS    7
+#define SPHERE    0
+#define DOG       1
+#define CEU       2
+#define SHIP      3
+#define EYES      4
+#define FACE      5
+#define ASTEROID  6
+#define GLASS     7
+#define SUN       8
+#define BLACKHOLE 9
 
 uniform int object_id;
 
@@ -42,6 +44,7 @@ uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
 uniform sampler2D TextureImage5;
 uniform sampler2D TextureImage6;
+uniform sampler2D TextureImage7;
 
 // Posicao da luz
 uniform vec4 light_position;
@@ -205,7 +208,9 @@ void main()
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
     color.rgb = pow(color.rgb, vec3(1.0,1.0,1.0)/2.2);
 
-
+    if (object_id == SUN){
+        color.rgb = gourardColor;
+    }
     
 } 
 
