@@ -187,11 +187,11 @@ float g_AngleZ = 0.0f;
 float pi = 3.14159265359f;
 
 // Velocidade do personagem e flags de movimento
-const float MAX_SPEED = 3.0f;
+const float MAX_SPEED = 1.3f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
-float speed = 0.02f;
-float speedFreio = 0.005f;
+float speed = 0.01f;
+float speedFreio = 0.001f;
 
 bool walk_up = false;
 bool walk_down = false;
@@ -566,7 +566,7 @@ int main(int argc, char *argv[])
                     if (asteroides_destruidos[j] == 1)
                         asteroides_faltando++;
                 }
-                printf("O asteroide %i foi destruído. Asteroides faltando: %d\n", i, asteroides_faltando);
+                printf("O asteroide %i foi destruido. Asteroides faltando: %d\n", i, asteroides_faltando);
             }
         }
 
@@ -585,7 +585,7 @@ int main(int argc, char *argv[])
             else
                 trocaCurva = true;
         }
-        printf("Ponto: %f %f %f\n", ponto.x, ponto.y, ponto.z);
+        // printf("Ponto: %f %f %f\n", ponto.x, ponto.y, ponto.z);
         
         model = modelEarthCenter * modelEarthCenter
                 * modelSphere
@@ -1570,7 +1570,7 @@ void TextRendering_ShowModelViewProjection(
 // g_AngleX, g_AngleY, e g_AngleZ.
 void TextRendering_ShowEulerAngles(GLFWwindow *window)
 {
-    if (!g_ShowInfoText)
+    if (g_ShowInfoText)
         return;
 
     float pad = TextRendering_LineHeight(window);
@@ -1584,7 +1584,7 @@ void TextRendering_ShowEulerAngles(GLFWwindow *window)
 // Escrevemos na tela qual matriz de projeção está sendo utilizada.
 void TextRendering_ShowProjection(GLFWwindow *window)
 {
-    if (!g_ShowInfoText)
+    if (g_ShowInfoText)
         return;
 
     float lineheight = TextRendering_LineHeight(window);
