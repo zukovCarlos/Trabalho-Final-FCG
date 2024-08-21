@@ -116,6 +116,7 @@ void updateSpeed();
 void printBBOX(glm::vec3 bbox_min, glm::vec3 bbox_max);
 glm::vec3 atualizaBBOX(glm::vec3 bbox, glm::mat4 model);
 glm::vec2 testaBBOX(float min, float max);
+glm::vec4 bezier(glm::vec4 p1, glm::vec4 p2, glm::vec4 p3, glm::vec4 p4, float t);
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -241,6 +242,21 @@ GLint g_light_uniform;
 
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
+
+float contadorBezier = 0;
+bool trocaCurva = true;
+float r = 80.0f;
+float r_z = r * sin(30);
+float r_x = r * cos(30);
+
+glm::vec4 verticesBezier[6] = {
+    glm::vec4(0.0f, 0.0f,   r, 1.0f),
+    glm::vec4(-r_x-20*r, 0.0f,   r_z, 1.0f),
+    glm::vec4(-r_x-20*r, 0.0f,  -r_z, 1.0f),
+    glm::vec4(0.0f, 0.0f,       -r       , 1.0f),
+    glm::vec4( r_x+20*r, 0.0f,  -r_z, 1.0f),
+    glm::vec4( r_x+20*r, 0.0f,   r_z, 1.0f)
+};
 
 int main(int argc, char *argv[])
 {
@@ -376,7 +392,7 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<> dis(1, 1000);
     
     // Numero de asteroides
-    int num_asteroids = 100;
+    int num_asteroids = 50;
     int asteroides_destruidos[num_asteroids];
     for (int i = 0; i < num_asteroids; i++)
     {
@@ -554,6 +570,32 @@ int main(int argc, char *argv[])
             }
         }
 
+        glm::vec4 ponto;
+
+
+        if(trocaCurva)
+            ponto = bezier(verticesBezier[0],verticesBezier[1],verticesBezier[2],verticesBezier[3],contadorBezier);
+        else
+            ponto = bezier(verticesBezier[3],verticesBezier[4],verticesBezier[5],verticesBezier[0],contadorBezier);
+        contadorBezier += 0.0001;
+        if(contadorBezier > 1.00){
+            contadorBezier = 0;
+            if(trocaCurva)
+                trocaCurva = false;
+            else
+                trocaCurva = true;
+        }
+        printf("Ponto: %f %f %f\n", ponto.x, ponto.y, ponto.z);
+        
+        model = modelEarthCenter * modelEarthCenter
+                * modelSphere
+                * Matrix_Translate(0.0f, 31.0f, 0.0f)
+                * Matrix_Translate(ponto.x, ponto.y, ponto.z)
+                * Matrix_Scale(30.00f,30.00f,30.00f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, ASTEROID);
+        DrawVirtualObject("Asteroid_01");
+
         // Desenho do ceu
         model = Matrix_Identity();
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(2000.0f,2000.0f,2000.0f) * modelSphere;
@@ -722,6 +764,14 @@ glm::vec2 testaBBOX(float min, float max){
     return glm::vec2(min, max);
 }
 
+glm::vec4 bezier(glm::vec4 p1, glm::vec4 p2, glm::vec4 p3, glm::vec4 p4, float t){
+    glm::vec4 p12 = p1 + t*(p2 - p1);
+    glm::vec4 p23 = p2 + t*(p3 - p2);
+    glm::vec4 p34 = p3 + t*(p4 - p3);
+    glm::vec4 p123 = p12 + t*(p23 - p12);
+    glm::vec4 p234 = p23 + t*(p34 - p23);
+    return p123 + t*(p234 - p123);
+}
 // Função que carrega uma imagem para ser utilizada como textura
 void LoadTextureImage(const char *filename)
 {
