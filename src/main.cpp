@@ -115,6 +115,7 @@ void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position);
 void updateSpeed();
 void printBBOX(glm::vec3 bbox_min, glm::vec3 bbox_max);
 glm::vec3 atualizaBBOX(glm::vec3 bbox, glm::mat4 model);
+glm::vec2 testaBBOX(float min, float max);
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -188,7 +189,7 @@ float pi = 3.14159265359f;
 const float MAX_SPEED = 3.0f;
 float speed_X = 0.0f;
 float speed_Z = 0.0f;
-float speed = 0.04f;
+float speed = 0.02f;
 float speedFreio = 0.005f;
 
 bool walk_up = false;
@@ -212,7 +213,7 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // renderização.
 float g_CameraTheta = 0.0f;    // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;      // Ângulo em relação ao eixo Y
-float g_CameraDistance = 3.50f; // Distância da câmera para a origem
+float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
 // Para a câmera em primeira pessoa
 int tipoCamera = 0; // 0 = Look At, 1 = Primeira Pessoa
@@ -376,12 +377,16 @@ int main(int argc, char *argv[])
     
     // Numero de asteroides
     int num_asteroids = 100;
-
+    int asteroides_destruidos[num_asteroids];
+    for (int i = 0; i < num_asteroids; i++)
+    {
+        asteroides_destruidos[i] = 1;
+    }
     float rand_list[num_asteroids];
 
     for (int i = 0; i < num_asteroids; i++)
     {   
-        rand_list[i] = dis(gen) / 1000.0f;
+        rand_list[i] = dis(gen);
     }
 
     while (!glfwWindowShouldClose(window))
@@ -416,7 +421,7 @@ int main(int argc, char *argv[])
             y = -1;
 
         // Define a posicao da luz e a rotacao dela para sincronizar com a rotacao da terra
-        glm::vec4 light_position = glm::vec4(50.0f, 50.0f, 50.0f, 1.0f);
+        glm::vec4 light_position = glm::vec4(0.0f, 350.0f, 10.0f, 1.0f);
 
         // Guarda informação em relação ao último frame, para manter a animação baseada no tempo
         float currentFrame = (float)glfwGetTime();
@@ -429,13 +434,13 @@ int main(int argc, char *argv[])
         if(tipoCamera == 1) {
             camera_position_c  = glm::vec4(0 , 0.8f, 0.4f, 1.0f); // Ponto "c", centro da câmera
             camera_view_vector = glm::vec4(0 , -0.9f, 1.6f, 0.0f); // Vetor "view", sentido para onde a câmera está virada
-            printf("camera_view_vector: %f %f %f\n", x, y, z);
+            // printf("camera_view_vector: %f %f %f\n", x, y, z);
             
             camera_w_vector = - camera_view_vector/norm(camera_view_vector);
             camera_u_vector = crossproduct(camera_up_vector, camera_w_vector)/norm(crossproduct(camera_up_vector, camera_w_vector));  
         
-            glm::vec4 movement_vector_EsqDir = camera_u_vector * speed * deltaTime;
-            glm::vec4 movement_vector_FreAtr = camera_view_vector * speed * deltaTime;
+            glm::vec4 movement_vector_EsqDir = camera_u_vector * deltaSpeed;
+            glm::vec4 movement_vector_FreAtr = camera_view_vector * deltaSpeed;
 
             if(walk_up)
                 camera_position_c -= movement_vector_FreAtr;
@@ -490,7 +495,6 @@ int main(int argc, char *argv[])
         #define SUN       8
         #define BLACKHOLE 9
 
-
         // Função para atualizar a velocidade do catioro
         updateSpeed();
 
@@ -506,29 +510,48 @@ int main(int argc, char *argv[])
         glm::mat4 modelEarthCenter = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Identity();
         for (int i = 0; i < num_asteroids; i++){
             // Desenho do asteroide
-            if (i%2 == 0)
-                model =
-                    modelEarthCenter
-                    * modelSphere
-                    * Matrix_Rotate_Z(((62*pi)/1000)*rand_list[i]*1000 + (float)glfwGetTime() * 0.05) // velocidade de rotacao do asteroide
-                    * Matrix_Rotate_X(((62*pi)/1000)*i + (float)glfwGetTime() * 0.05) // velocidade de rotacao do asteroide
-                    * Matrix_Translate(0.0f, 31.0f, 0.0f);
-                        // * Matrix_Scale(10.0f,10.0f,10.0f);
-            else
+
             model =
-                Matrix_Translate(0.0f, -31.0f, 0.0f)
+                modelEarthCenter
                 * modelSphere
-                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]*1000 + (float)glfwGetTime() * 0.1) // velocidade de rotacao do asteroide
-                * Matrix_Rotate_Z(((62*pi)/1000)*i + (float)glfwGetTime() * 0.1) // velocidade de rotacao do asteroide
+                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]) // velocidade de rotacao do asteroide
+                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]) // velocidade de rotacao do asteroide
+                * Matrix_Rotate_Z(((62*pi)/num_asteroids)*i*rand_list[i] + (float)glfwGetTime() * 0.5) // velocidade de rotacao do asteroide
                 * Matrix_Translate(0.0f, 31.0f, 0.0f);
-                    
-            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-            glUniform1i(g_object_id_uniform, ASTEROID);
-            DrawVirtualObject("Asteroid_01");
+             
+            // if (true)
+            if (asteroides_destruidos[i] == 1)
+                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+                glUniform1i(g_object_id_uniform, ASTEROID);
+                DrawVirtualObject("Asteroid_01");
 
+            glm::vec3 bbox_minAux = atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_min,model);
+            glm::vec3 bbox_maxAux = atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_max,model);
+            glm::vec2 aux_x = testaBBOX(bbox_minAux.x, bbox_maxAux.x);
+            glm::vec2 aux_y = testaBBOX(bbox_minAux.y, bbox_maxAux.y);
+            glm::vec2 aux_z = testaBBOX(bbox_minAux.z, bbox_maxAux.z);
 
-            CubePoint(atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_min, model), atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_max, model));
-            //printBBOX(g_VirtualScene["Asteroid_01"].bbox_min, g_VirtualScene["Asteroid_01"].bbox_max);
+            glm::vec3 bbox_minAtualizado = glm::vec3(aux_x.x, aux_y.x, aux_z.x);
+            glm::vec3 bbox_maxAtualizado = glm::vec3(aux_x.y, aux_y.y, aux_z.y);
+
+            if(
+                CubePoint(
+                    bbox_minAtualizado, 
+                    bbox_maxAtualizado
+                    )
+                )
+            {
+
+                asteroides_destruidos[i] = 0; // marca o asteroide como destruido
+
+                int asteroides_faltando = 0;
+                for (int j = 0; j < num_asteroids; j++)
+                {
+                    if (asteroides_destruidos[j] == 1)
+                        asteroides_faltando++;
+                }
+                printf("O asteroide %i foi destruído. Asteroides faltando: %d\n", i, asteroides_faltando);
+            }
         }
 
         // Desenho do ceu
@@ -688,6 +711,15 @@ void printBBOX(glm::vec3 bbox_min, glm::vec3 bbox_max){
 glm::vec3 atualizaBBOX(glm::vec3 bbox, glm::mat4 model){
     glm::vec4 bboxAux = model * glm::vec4(bbox, 1.0f);
     return glm::vec3(bboxAux.x, bboxAux.y, bboxAux.z);
+}
+
+glm::vec2 testaBBOX(float min, float max){
+    if(min > max){
+        float aux = min;
+        min = max;
+        max = aux;
+    }
+    return glm::vec2(min, max);
 }
 
 // Função que carrega uma imagem para ser utilizada como textura
@@ -1356,7 +1388,7 @@ void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
     // Atualizamos a distância da câmera para a origem utilizando a
     // movimentação da "rodinha", simulando um ZOOM.
-    g_CameraDistance -= 0.1f * yoffset;
+    g_CameraDistance -= 1.0f * yoffset;
 
     // Uma câmera look-at nunca pode estar exatamente "em cima" do ponto para
     // onde ela está olhando, pois isto gera problemas de divisão por zero na
@@ -1386,7 +1418,7 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
             tipoCamera = 1;
         else
             tipoCamera = 0;
-    }
+    }    
 
     // Se o usuário pressionar a tecla ESC, fechamos a janela.
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
