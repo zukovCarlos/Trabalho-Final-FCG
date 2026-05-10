@@ -7,10 +7,12 @@
 # ser compilados.
 set(SOURCES
   src/main.cpp
+  src/game.cpp
+  src/maths.cpp
+  src/gfx.cpp
   src/textrendering.cpp
   src/tiny_obj_loader.cpp
   src/stb_image.cpp
-  src/glad.c
   src/collisions.cpp
 )
 
@@ -18,7 +20,7 @@ cmake_minimum_required(VERSION 3.5.0)
 
 project(LAB_FCG VERSION 1.0.0)
 
-set(CMAKE_CXX_STANDARD          11)
+set(CMAKE_CXX_STANDARD          20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS        OFF)
 
@@ -93,13 +95,15 @@ if(WIN32)
 
   elseif(MSVC)
     set(LIBGLFW ${PROJECT_SOURCE_DIR}/lib-vc2022/glfw3.lib)
+    set(LIBGLEW ${PROJECT_SOURCE_DIR}/lib-vc2022/glew32.lib)
   else()
     message(FATAL_ERROR "This CMakeLists.txt file only supports MINGW or MSVC toolchain on Windows.")
   endif()
 
   message(STATUS "LIBGLFW = ${LIBGLFW}")
+  message(STATUS "LIBGLEW = ${LIBGLEW}")
 
-  target_link_libraries(${EXECUTABLE_NAME} ${LIBGLFW} gdi32 opengl32)
+  target_link_libraries(${EXECUTABLE_NAME} ${LIBGLFW} ${LIBGLEW} gdi32 opengl32)
 
 elseif(UNIX)
 

@@ -32,7 +32,8 @@
 #include <algorithm>
 
 // Headers das bibliotecas OpenGL
-#include <glad/glad.h>  // Criação de contexto OpenGL 3.3
+// #include <glad/glad.h>  // Criação de contexto OpenGL 3.3
+#include "glew/GL/glew.h"
 #include <GLFW/glfw3.h> // Criação de janelas do sistema operacional
 
 // Headers da biblioteca GLM: criação de matrizes e vetores.
@@ -47,69 +48,23 @@
 
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
-#include "matrices.h"
+#include "maths.h"
 #include "collisions.h"
+#include "game.h"
 
-const float SPEEDTHRESHOLD = 0.01f;
+// const float SPEEDTHRESHOLD = 0.01f;
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
-struct ObjModel
+
+GameContext g_gameContext;
+
+struct Asteroid
 {
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-
-    // Este construtor lê o modelo de um arquivo utilizando a biblioteca tinyobjloader.
-    // Veja: https://github.com/syoyo/tinyobjloader
-    ObjModel(const char *filename, const char *basepath = NULL, bool triangulate = true)
-    {
-        printf("Carregando objetos do arquivo \"%s\"...\n", filename);
-
-        // Se basepath == NULL, então setamos basepath como o dirname do
-        // filename, para que os arquivos MTL sejam corretamente carregados caso
-        // estejam no mesmo diretório dos arquivos OBJ.
-        std::string fullpath(filename);
-        std::string dirname;
-        if (basepath == NULL)
-        {
-            auto i = fullpath.find_last_of("/");
-            if (i != std::string::npos)
-            {
-                dirname = fullpath.substr(0, i + 1);
-                basepath = dirname.c_str();
-            }
-        }
-
-        std::string warn;
-        std::string err;
-        bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
-
-        if (!err.empty())
-            fprintf(stderr, "\n%s\n", err.c_str());
-
-        if (!ret)
-            throw std::runtime_error("Erro ao carregar modelo.");
-
-        for (size_t shape = 0; shape < shapes.size(); ++shape)
-        {
-            if (shapes[shape].name.empty())
-            {
-                fprintf(stderr,
-                        "*********************************************\n"
-                        "Erro: Objeto sem nome dentro do arquivo '%s'.\n"
-                        "Veja https://www.inf.ufrgs.br/~eslgastal/fcg-faq-etc.html#Modelos-3D-no-formato-OBJ .\n"
-                        "*********************************************\n",
-                        filename);
-                throw std::runtime_error("Objeto sem nome.");
-            }
-            printf("- Objeto '%s'\n", shapes[shape].name.c_str());
-        }
-
-        printf("OK.\n");
-    }
+    float m_position[3];
+    float m_angle;
+    // float m_orientation[3];
 };
-
 // Funcoes novas
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position);
 void updateSpeed();
@@ -124,11 +79,11 @@ void PopMatrix(glm::mat4 &M);
 
 // Declaração de várias funções utilizadas em main().  Essas estão definidas
 // logo após a definição de main() neste arquivo.
-void BuildTrianglesAndAddToVirtualScene(ObjModel *);                         // Constrói representação de um ObjModel como malha de triângulos para renderização
+// void BuildTrianglesAndAddToVirtualScene(ObjModel *);                         // Constrói representação de um ObjModel como malha de triângulos para renderização
 void ComputeNormals(ObjModel *model);                                        // Computa normais de um ObjModel, caso não existam.
-void LoadShadersFromFiles();                                                 // Carrega os shaders de vértice e fragmento, criando um programa de GPU
-void LoadTextureImage(const char *filename);                                 // Função que carrega imagens de textura
-void DrawVirtualObject(const char *object_name);                             // Desenha um objeto armazenado em g_VirtualScene
+// void LoadShadersFromFiles();                                                 // Carrega os shaders de vértice e fragmento, criando um programa de GPU
+// void LoadTextureImage(const char *filename);                                 // Função que carrega imagens de textura
+void DrawVirtualObject(SceneObject *object);                             // Desenha um objeto armazenado em g_VirtualScene
 GLuint LoadShader_Vertex(const char *filename);                              // Carrega um vertex shader
 GLuint LoadShader_Fragment(const char *filename);                            // Carrega um fragment shader
 void LoadShader(const char *filename, GLuint shader_id);                     // Função utilizada pelas duas acima
@@ -240,14 +195,16 @@ GLint g_bbox_min_uniform;
 GLint g_bbox_max_uniform;
 GLint g_light_uniform;
 
+GLuint g_particleProgram = 0;
+
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
 float contadorBezier = 0;
 bool trocaCurva = true;
 float r = 80.0f;
-float r_z = r * sin(30);
-float r_x = r * cos(30);
+float r_z = r * sinf(30);
+float r_x = r * cosf(30);
 
 glm::vec4 verticesBezier[6] = {
     glm::vec4(0.0f, 0.0f,   r, 1.0f),
@@ -257,6 +214,17 @@ glm::vec4 verticesBezier[6] = {
     glm::vec4( r_x+20*r, 0.0f,  -r_z, 1.0f),
     glm::vec4( r_x+20*r, 0.0f,   r_z, 1.0f)
 };
+
+// #define ASTEROID_COUNT 50
+// int num_asteroids = ASTEROID_COUNT;
+
+// struct Asteroid asteroids[ASTEROID_COUNT];
+
+// ObjModel *spheremodel = nullptr;
+// ObjModel *dogmodel = nullptr;
+// ObjModel *shipmodel = nullptr;
+// ObjModel *vidromodel = nullptr;
+// ObjModel *asteroidmodel = nullptr;
 
 int main(int argc, char *argv[])
 {
@@ -310,7 +278,14 @@ int main(int argc, char *argv[])
 
     // Carregamento de todas funções definidas por OpenGL 3.3, utilizando a
     // biblioteca GLAD.
-    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+    // gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+    // GLenum status = glewInit();
+    if(!GfxContext::init())
+    {
+        printf("Couldn't initialize Gfx!\n");
+        return -1;
+    }
 
     // Definimos a função de callback que será chamada sempre que a janela for
     // redimensionada, por consequência alterando o tamanho do "framebuffer"
@@ -329,44 +304,81 @@ int main(int argc, char *argv[])
     // Carregamos os shaders de vértices e de fragmentos que serão utilizados
     // para renderização. Veja slides 180-200 do documento Aula_03_Rendering_Pipeline_Grafico.pdf.
     //
-    LoadShadersFromFiles();
+    // LoadShadersFromFiles();
 
     // Carregamos duas imagens para serem utilizadas como textura
-    LoadTextureImage("../../data/map.jpg");      // TextureImage0
-    LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
-    LoadTextureImage("../../data/dog.png"); // TextureImage2
-    LoadTextureImage("../../data/metal.jpg"); // TextureImage3
-    LoadTextureImage("../../data/eyes.png"); // TextureImage4
-    LoadTextureImage("../../data/asteroid.jpg"); // TextureImage5
-    LoadTextureImage("../../data/glass.jpg"); // TextureImage6
-    LoadTextureImage("../../data/sun.png"); // TextureImage7
+    // LoadTextureImage("../../data/map.jpg");      // TextureImage0
+    // LoadTextureImage("../../data/stars.jpeg"); // TextureImage1
+    // LoadTextureImage("../../data/dog.png"); // TextureImage2
+    // LoadTextureImage("../../data/metal.jpg"); // TextureImage3
+    // LoadTextureImage("../../data/eyes.png"); // TextureImage4
+    // LoadTextureImage("../../data/asteroid.jpg"); // TextureImage5
+    // LoadTextureImage("../../data/glass.jpg"); // TextureImage6
+    // LoadTextureImage("../../data/sun.png"); // TextureImage7
+
+    GameContext::init();
+
+    GfxContext::bindShader(GameContext::m_doItAllShader);
+
+    glActiveTexture(GL_TEXTURE0);
+    GfxContext::bindTexture(GameContext::m_mapTexture);
+    glActiveTexture(GL_TEXTURE1);
+    GfxContext::bindTexture(GameContext::m_starsTexture);
+    glActiveTexture(GL_TEXTURE2);
+    GfxContext::bindTexture(GameContext::m_dogTexture);
+    glActiveTexture(GL_TEXTURE3);
+    GfxContext::bindTexture(GameContext::m_metalTexture);
+    glActiveTexture(GL_TEXTURE4);
+    GfxContext::bindTexture(GameContext::m_eyesTexture);
+    glActiveTexture(GL_TEXTURE5);
+    GfxContext::bindTexture(GameContext::m_asteroidTexture);
+    glActiveTexture(GL_TEXTURE6);
+    GfxContext::bindTexture(GameContext::m_glassTexture);
+    glActiveTexture(GL_TEXTURE7);
+    GfxContext::bindTexture(GameContext::m_sunTexture);
+
+    GameContext::m_doItAllShader->uniform1i(7, 0);
+    GameContext::m_doItAllShader->uniform1i(8, 1);
+    GameContext::m_doItAllShader->uniform1i(9, 2);
+    GameContext::m_doItAllShader->uniform1i(10, 3);
+    GameContext::m_doItAllShader->uniform1i(11, 4);
+    GameContext::m_doItAllShader->uniform1i(12, 5);
+    GameContext::m_doItAllShader->uniform1i(13, 6);
+    GameContext::m_doItAllShader->uniform1i(14, 7);
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
-    ObjModel spheremodel("../../data/bola.obj");
-    ComputeNormals(&spheremodel);
-    BuildTrianglesAndAddToVirtualScene(&spheremodel);
+    // ObjModel spheremodel("../../data/bola.obj");
+    // ComputeNormals(&spheremodel);
+    // BuildTrianglesAndAddToVirtualScene(&spheremodel);
 
-    ObjModel dogmodel("../../data/dog.obj");
-    ComputeNormals(&dogmodel);
-    BuildTrianglesAndAddToVirtualScene(&dogmodel);
+    // ObjModel dogmodel("../../data/dog.obj");
+    // ComputeNormals(&dogmodel);
+    // BuildTrianglesAndAddToVirtualScene(&dogmodel);
 
-    ObjModel shipmodel("../../data/ship.obj");
-    ComputeNormals(&shipmodel);
-    BuildTrianglesAndAddToVirtualScene(&shipmodel);
+    // ObjModel shipmodel("../../data/ship.obj");
+    // ComputeNormals(&shipmodel);
+    // BuildTrianglesAndAddToVirtualScene(&shipmodel);
 
-    ObjModel vidromodel("../../data/vidro.obj");
-    ComputeNormals(&vidromodel);
-    BuildTrianglesAndAddToVirtualScene(&vidromodel);
+    // ObjModel vidromodel("../../data/vidro.obj");
+    // ComputeNormals(&vidromodel);
+    // BuildTrianglesAndAddToVirtualScene(&vidromodel);
 
-    ObjModel asteroidmodel("../../data/asteroid.obj");
-    ComputeNormals(&asteroidmodel);
-    BuildTrianglesAndAddToVirtualScene(&asteroidmodel);
+    // ObjModel asteroidmodel("../../data/asteroid.obj");
+    // ComputeNormals(&asteroidmodel);
+    // BuildTrianglesAndAddToVirtualScene(&asteroidmodel);
 
-    if ( argc > 1 )
-    {
-        ObjModel model(argv[1]);
-        BuildTrianglesAndAddToVirtualScene(&model);
-    }
+    // if ( argc > 1 )
+    // {
+    //     ObjModel model(argv[1]);
+    //     BuildTrianglesAndAddToVirtualScene(&model);
+    // }
+
+    // spheremodel = g_gameContext.loadModel("../../data/bola.obj");
+    // dogmodel = g_gameContext.loadModel("../../data/dog.obj");
+    // shipmodel = g_gameContext.loadModel("../../data/ship.obj");
+    // vidromodel = g_gameContext.loadModel("../../data/vidro.obj");
+    // asteroidmodel = g_gameContext.loadModel("../../data/asteroidmodel.obj");
+    
 
     // Inicializamos o código para renderização de texto.
     TextRendering_Init();
@@ -392,18 +404,28 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<> dis(1, 1000);
     
     // Numero de asteroides
-    int num_asteroids = 50;
-    int asteroides_destruidos[num_asteroids];
-    for (int i = 0; i < num_asteroids; i++)
-    {
-        asteroides_destruidos[i] = 1;
-    }
-    float rand_list[num_asteroids];
+    
+    // int asteroides_destruidos[num_asteroids];
+    // for (int i = 0; i < num_asteroids; i++)
+    // {
+    //     asteroides_destruidos[i] = 1;
+    // }
+    // float rand_list[num_asteroids];
 
-    for (int i = 0; i < num_asteroids; i++)
-    {   
-        rand_list[i] = dis(gen);
-    }
+    // struct Asteroid asteroids[num_asteroids];
+
+    // for (int i = 0; i < num_asteroids; i++)
+    // {   
+    //     asteroids[i].m_angle = dis(gen);
+    // }
+
+    // SceneObject *sunObject = GameContext::createSceneObject({}, GameContext::m_sphereModel);
+    // SceneObject *asteroidModel = g_gameContext.createSceneObject({}, g_gameContext.m_asteroidModel);
+    // SceneObject *dogObject = GameContext::createSceneObject({}, GameContext::m_dogModel);
+    // SceneObject *eyesModel = GameContext::createSceneObject({}, GameContext::m);
+    // SceneObject *faceModel = &g_VirtualScene["face"];
+    // SceneObject *shipModel = &g_VirtualScene["ship"];
+    // SceneObject *vidroModel = &g_VirtualScene["vidro"];
 
     while (!glfwWindowShouldClose(window))
     {
@@ -423,7 +445,9 @@ int main(int argc, char *argv[])
 
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
-        glUseProgram(g_GpuProgramID);
+        // glUseProgram(g_GpuProgramID);
+
+        GfxContext::bindShader(GameContext::m_doItAllShader);
 
         // Computamos a posição da câmera utilizando coordenadas esféricas.  As
         // variáveis g_CameraDistance, g_CameraPhi, e g_CameraTheta são
@@ -489,7 +513,7 @@ int main(int argc, char *argv[])
 
         // Projeção Perspectiva.
         // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
-        float field_of_view = 3.141592 / 3.0f;
+        float field_of_view = 3.141592f / 3.0f;
         projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
 
         glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
@@ -497,114 +521,119 @@ int main(int argc, char *argv[])
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
         // efetivamente aplicadas em todos os pontos.
-        glUniformMatrix4fv(g_view_uniform, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(g_projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
+        // glUniformMatrix4fv(g_view_uniform, 1, GL_FALSE, glm::value_ptr(view));
+        // glUniformMatrix4fv(g_projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
 
-        #define BOLA      0
-        #define DOG       1
-        #define CEU       2
-        #define SHIP      3
-        #define EYES      4
-        #define FACE      5
-        #define ASTEROID  6
-        #define GLASS     7
-        #define SUN       8
-        #define BLACKHOLE 9
+        GameContext::m_doItAllShader->uniformMat4v(1, glm::value_ptr(view));
+        GameContext::m_doItAllShader->uniformMat4v(2, glm::value_ptr(projection));
+
+        // #define BOLA      0
+        // #define DOG       1
+        // #define CEU       2
+        // #define SHIP      3
+        // #define EYES      4
+        // #define FACE      5
+        // #define ASTEROID  6
+        // #define GLASS     7
+        // #define SUN       8
+        // #define BLACKHOLE 9
 
         // Função para atualizar a velocidade do catioro
         updateSpeed();
+
+        // update(deltaTime);
 
         // Desenho da terra
         modelSphere = Matrix_Rotate_X(-speed_X / 500) * Matrix_Rotate_Z(-speed_Z / 500) * modelSphere;
         
         modelSphereInverse = Matrix_Rotate_X(speed_X / 500) * Matrix_Rotate_Z(speed_Z / 500) * modelSphereInverse;
         model = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f) * modelSphere;
-        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BOLA);
-        DrawVirtualObject("bola");
+        // glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, BOLA);
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, BOLA);
+        
+        DrawVirtualObject(GameContext::m_earthObject);
+        // glUniform1i(g_object_id_uniform, ASTEROID);
+        GameContext::m_doItAllShader->uniform1i(3, ASTEROID);
 
         glm::mat4 modelEarthCenter = Matrix_Translate(0.0f, -31.0f, 0.0f) * Matrix_Identity();
-        for (int i = 0; i < num_asteroids; i++){
-            // Desenho do asteroide
+        // for (int i = 0; i < num_asteroids; i++){
+        //     // Desenho do asteroide
 
-            model =
-                modelEarthCenter
-                * modelSphere
-                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]) // velocidade de rotacao do asteroide
-                * Matrix_Rotate_X(((62*pi)/1000)*rand_list[i]) // velocidade de rotacao do asteroide
-                * Matrix_Rotate_Z(((62*pi)/num_asteroids)*i*rand_list[i] + (float)glfwGetTime() * 0.5) // velocidade de rotacao do asteroide
-                * Matrix_Translate(0.0f, 31.0f, 0.0f);
+        //     model =
+        //         modelEarthCenter
+        //         * modelSphere
+        //         * Matrix_Rotate_X(((62*pi)/1000) * asteroids[i].m_angle) // velocidade de rotacao do asteroide
+        //         * Matrix_Rotate_X(((62*pi)/1000) * asteroids[i].m_angle) // velocidade de rotacao do asteroide
+        //         * Matrix_Rotate_Z(((62*pi)/ASTEROID_COUNT) * i * asteroids[i].m_angle + (float)glfwGetTime() * 0.5) // velocidade de rotacao do asteroide
+        //         * Matrix_Translate(0.0f, 31.0f, 0.0f);
              
-            // if (true)
-            if (asteroides_destruidos[i] == 1)
-                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-                glUniform1i(g_object_id_uniform, ASTEROID);
-                DrawVirtualObject("Asteroid_01");
+        //     // if (true)
+        //     // if (asteroides_destruidos[i] == 1)
+        //     glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        //     DrawVirtualObject(asteroidModel);
 
-            glm::vec3 bbox_minAux = atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_min,model);
-            glm::vec3 bbox_maxAux = atualizaBBOX(g_VirtualScene["Asteroid_01"].bbox_max,model);
-            glm::vec2 aux_x = testaBBOX(bbox_minAux.x, bbox_maxAux.x);
-            glm::vec2 aux_y = testaBBOX(bbox_minAux.y, bbox_maxAux.y);
-            glm::vec2 aux_z = testaBBOX(bbox_minAux.z, bbox_maxAux.z);
+        //     glm::vec3 bbox_minAux = atualizaBBOX(asteroidModel->m_bbox_min, model);
+        //     glm::vec3 bbox_maxAux = atualizaBBOX(asteroidModel->m_bbox_max, model);
+        //     glm::vec2 aux_x = testaBBOX(bbox_minAux.x, bbox_maxAux.x);
+        //     glm::vec2 aux_y = testaBBOX(bbox_minAux.y, bbox_maxAux.y);
+        //     glm::vec2 aux_z = testaBBOX(bbox_minAux.z, bbox_maxAux.z);
 
-            glm::vec3 bbox_minAtualizado = glm::vec3(aux_x.x, aux_y.x, aux_z.x);
-            glm::vec3 bbox_maxAtualizado = glm::vec3(aux_x.y, aux_y.y, aux_z.y);
+        //     glm::vec3 bbox_minAtualizado = glm::vec3(aux_x.x, aux_y.x, aux_z.x);
+        //     glm::vec3 bbox_maxAtualizado = glm::vec3(aux_x.y, aux_y.y, aux_z.y);
 
-            if(
-                CubePoint(
-                    bbox_minAtualizado, 
-                    bbox_maxAtualizado
-                    )
-                )
-            {
+        //     if(CubePoint(bbox_minAtualizado, bbox_maxAtualizado))
+        //     {
+        //         num_asteroids--;
 
-                asteroides_destruidos[i] = 0; // marca o asteroide como destruido
-
-                int asteroides_faltando = 0;
-                for (int j = 0; j < num_asteroids; j++)
-                {
-                    if (asteroides_destruidos[j] == 1)
-                        asteroides_faltando++;
-                }
-                printf("O asteroide %i foi destruido. Asteroides faltando: %d\n", i, asteroides_faltando);
-            }
-        }
+        //         if(i < num_asteroids)
+        //         {
+        //             asteroids[i] = asteroids[num_asteroids];
+        //             i--;
+        //         }
+                
+        //         printf("Asteroides faltando: %d\n", num_asteroids);
+        //     }
+        // }
 
         glm::vec4 ponto;
 
 
-        if(trocaCurva)
-            ponto = bezier(verticesBezier[0],verticesBezier[1],verticesBezier[2],verticesBezier[3],contadorBezier);
-        else
-            ponto = bezier(verticesBezier[3],verticesBezier[4],verticesBezier[5],verticesBezier[0],contadorBezier);
-        contadorBezier += 0.0001;
-        if(contadorBezier > 1.00){
-            contadorBezier = 0;
-            if(trocaCurva)
-                trocaCurva = false;
-            else
-                trocaCurva = true;
-        }
+        // if(trocaCurva)
+        //     ponto = bezier(verticesBezier[0],verticesBezier[1],verticesBezier[2],verticesBezier[3],contadorBezier);
+        // else
+        //     ponto = bezier(verticesBezier[3],verticesBezier[4],verticesBezier[5],verticesBezier[0],contadorBezier);
+        // contadorBezier += 0.0001;
+        // if(contadorBezier > 1.00){
+        //     contadorBezier = 0;
+        //     if(trocaCurva)
+        //         trocaCurva = false;
+        //     else
+        //         trocaCurva = true;
+        // }
         // printf("Ponto: %f %f %f\n", ponto.x, ponto.y, ponto.z);
         
-        model = modelEarthCenter * modelEarthCenter
-                * modelSphere
-                * Matrix_Translate(0.0f, 31.0f, 0.0f)
-                * Matrix_Translate(ponto.x, ponto.y, ponto.z)
-                * Matrix_Scale(30.00f,30.00f,30.00f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, ASTEROID);
-        DrawVirtualObject("Asteroid_01");
+        // model = modelEarthCenter * modelEarthCenter
+        //         * modelSphere
+        //         * Matrix_Translate(0.0f, 31.0f, 0.0f)
+        //         * Matrix_Translate(ponto.x, ponto.y, ponto.z)
+        //         * Matrix_Scale(30.00f,30.00f,30.00f);
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, ASTEROID);
+        // DrawVirtualObject(asteroidModel);
 
         // Desenho do ceu
         model = Matrix_Identity();
         model = Matrix_Translate(0.0f,1.0f,-4.0f) * Matrix_Scale(2000.0f,2000.0f,2000.0f) * modelSphere;
               
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, CEU);
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, CEU);
+        GameContext::m_doItAllShader->uniform1i(3, CEU);
         glCullFace(GL_FRONT);
         glDepthMask(GL_FALSE);
-        DrawVirtualObject("bola");
+        DrawVirtualObject(GameContext::m_earthObject);
         glCullFace(GL_BACK);
         glDepthMask(GL_TRUE);
 
@@ -613,37 +642,48 @@ int main(int argc, char *argv[])
 
         // Desenho do sol e do buraco negro
         model =  modelSphere * Matrix_Translate(0.0f, -700.0f, -20.0f) * Matrix_Scale(30.0f, 30.0f, 30.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BLACKHOLE); // buraco-negro
-        DrawVirtualObject("bola");
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, BLACKHOLE); // buraco-negro
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, BLACKHOLE);
+        // DrawVirtualObject(bolaModel);
+        DrawVirtualObject(GameContext::m_earthObject);
 
         model = modelSphere * Matrix_Translate(0.0f, 700.0f, 20.0f) * Matrix_Scale(100.0f, 100.0f, 100.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, SUN);   // sol
-        DrawVirtualObject("bola");
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, SUN);   // sol
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, SUN);
+        // DrawVirtualObject(bolaModel);
+        DrawVirtualObject(GameContext::m_earthObject);
 
 
         // Desenho do dog
         model = Matrix_Identity();
         
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, DOG);
-        DrawVirtualObject("dog");
-        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, EYES);
-        DrawVirtualObject("eyes");
-        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, FACE);
-        DrawVirtualObject("face");
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, DOG);
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, DOG);
+        DrawVirtualObject(GameContext::m_player.m_dogObject);
+        // glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, EYES);
+        // DrawVirtualObject(eyesModel);
+        // glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, FACE);
+        // DrawVirtualObject(faceModel);
 
         // Desenho da nave
         model = model
                 * Matrix_Translate(0.0f,0.0f,0.1f)
                 * Matrix_Rotate_Y((float)glfwGetTime() * 0.1f)
                 * Matrix_Scale(0.6f,0.6f,0.6f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model)); 
-        glUniform1i(g_object_id_uniform, SHIP);
-        DrawVirtualObject("ship");
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model)); 
+        // glUniform1i(g_object_id_uniform, SHIP);
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, SHIP);
+
+        DrawVirtualObject(GameContext::m_player.m_shipObject);
 
         // Desenho do vidro
         model = model 
@@ -652,9 +692,11 @@ int main(int argc, char *argv[])
                 * Matrix_Rotate_Y(1.2f);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, GLASS);
-        DrawVirtualObject("vidro");    
+        // glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        // glUniform1i(g_object_id_uniform, GLASS);
+        GameContext::m_doItAllShader->uniformMat4v(0, glm::value_ptr(model));
+        GameContext::m_doItAllShader->uniform1i(3, GLASS);
+        DrawVirtualObject(GameContext::m_player.m_glassObject);    
 
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
@@ -696,12 +738,13 @@ int main(int argc, char *argv[])
 // Função para atualizar a posição da luz baseado na rotação da terra para manter ela fixa
 void updateLightPosition(glm::mat4 rotationMatrix, glm::vec4 light_position){
     light_position = rotationMatrix *light_position;
+    GameContext::m_doItAllShader->uniform4fv(6, glm::value_ptr(light_position));
     //printf("light_position: %f %f %f\n", light_position.x, light_position.y, light_position.z);
-    glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
+    // glUniform4fv(g_light_uniform, 1 ,  glm::value_ptr(light_position));
 }
 
-// Função para atualizar a velocidade do personagem baseado nas teclas pressionadas.
-// Chamada a cada atualização de quadro e possui um teste para evitar que a velocidade ultrapasse um limite.
+// // Função para atualizar a velocidade do personagem baseado nas teclas pressionadas.
+// // Chamada a cada atualização de quadro e possui um teste para evitar que a velocidade ultrapasse um limite.
 void updateSpeed(){
     if (walk_left)
         if (speed_Z > -MAX_SPEED)
@@ -773,83 +816,89 @@ glm::vec4 bezier(glm::vec4 p1, glm::vec4 p2, glm::vec4 p3, glm::vec4 p4, float t
     return p123 + t*(p234 - p123);
 }
 // Função que carrega uma imagem para ser utilizada como textura
-void LoadTextureImage(const char *filename)
-{
-    printf("Carregando imagem \"%s\"... ", filename);
+// void LoadTextureImage(const char *filename)
+// {
+//     printf("Carregando imagem \"%s\"... ", filename);
 
-    // Primeiro fazemos a leitura da imagem do disco
-    stbi_set_flip_vertically_on_load(true);
-    int width;
-    int height;
-    int channels;
-    unsigned char *data = stbi_load(filename, &width, &height, &channels, 3);
+//     // Primeiro fazemos a leitura da imagem do disco
+//     stbi_set_flip_vertically_on_load(true);
+//     int width;
+//     int height;
+//     int channels;
+//     unsigned char *data = stbi_load(filename, &width, &height, &channels, 3);
 
-    if (data == NULL)
-    {
-        fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filename);
-        std::exit(EXIT_FAILURE);
-    }
+//     if (data == NULL)
+//     {
+//         fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filename);
+//         std::exit(EXIT_FAILURE);
+//     }
 
-    printf("OK (%dx%d).\n", width, height);
+//     printf("OK (%dx%d).\n", width, height);
 
-    // Agora criamos objetos na GPU com OpenGL para armazenar a textura
-    GLuint texture_id;
-    GLuint sampler_id;
-    glGenTextures(1, &texture_id);
-    glGenSamplers(1, &sampler_id);
+//     // Agora criamos objetos na GPU com OpenGL para armazenar a textura
+//     GLuint texture_id;
+//     GLuint sampler_id;
+//     glGenTextures(1, &texture_id);
+//     glGenSamplers(1, &sampler_id);
 
-    // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
-    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//     // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
+//     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Parâmetros de amostragem da textura.
-    glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//     // Parâmetros de amostragem da textura.
+//     glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+//     glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // Agora enviamos a imagem lida do disco para a GPU
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+//     // Agora enviamos a imagem lida do disco para a GPU
+//     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+//     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+//     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+//     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
-    GLuint textureunit = g_NumLoadedTextures;
-    glActiveTexture(GL_TEXTURE0 + textureunit);
-    glBindTexture(GL_TEXTURE_2D, texture_id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindSampler(textureunit, sampler_id);
+//     GLuint textureunit = g_NumLoadedTextures;
+//     glActiveTexture(GL_TEXTURE0 + textureunit);
+//     glBindTexture(GL_TEXTURE_2D, texture_id);
+//     glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+//     glGenerateMipmap(GL_TEXTURE_2D);
+//     glBindSampler(textureunit, sampler_id);
 
-    stbi_image_free(data);
+//     stbi_image_free(data);
 
-    g_NumLoadedTextures += 1;
-}
+//     g_NumLoadedTextures += 1;
+// }
 
 // Função que desenha um objeto armazenado em g_VirtualScene. Veja definição
 // dos objetos na função BuildTrianglesAndAddToVirtualScene().
-void DrawVirtualObject(const char *object_name)
+void DrawVirtualObject(SceneObject *object)
 {
     // "Ligamos" o VAO. Informamos que queremos utilizar os atributos de
     // vértices apontados pelo VAO criado pela função BuildTrianglesAndAddToVirtualScene(). Veja
     // comentários detalhados dentro da definição de BuildTrianglesAndAddToVirtualScene().
-    glBindVertexArray(g_VirtualScene[object_name].vertex_array_object_id);
+    glBindVertexArray(object->m_model->m_vao);
 
     // Setamos as variáveis "bbox_min" e "bbox_max" do fragment shader
     // com os parâmetros da axis-aligned bounding box (AABB) do modelo.
-    glm::vec3 bbox_min = g_VirtualScene[object_name].bbox_min;
-    glm::vec3 bbox_max = g_VirtualScene[object_name].bbox_max;
-    glUniform4f(g_bbox_min_uniform, bbox_min.x, bbox_min.y, bbox_min.z, 1.0f);
-    glUniform4f(g_bbox_max_uniform, bbox_max.x, bbox_max.y, bbox_max.z, 1.0f);
+    glm::vec4 bbox_min = {object->m_bboxMin, 1.0f};
+    glm::vec4 bbox_max = {object->m_bboxMax, 1.0f};
+    GameContext::m_doItAllShader->uniform4fv(4, glm::value_ptr(bbox_min));
+    GameContext::m_doItAllShader->uniform4fv(5, glm::value_ptr(bbox_max));
+    // glUniform4f(g_bbox_min_uniform, bbox_min.x, bbox_min.y, bbox_min.z, 1.0f);
+    // glUniform4f(g_bbox_max_uniform, bbox_max.x, bbox_max.y, bbox_max.z, 1.0f);
 
     // Pedimos para a GPU rasterizar os vértices dos eixos XYZ
     // apontados pelo VAO como linhas. Veja a definição de
     // g_VirtualScene[""] dentro da função BuildTrianglesAndAddToVirtualScene(), e veja
     // a documentação da função glDrawElements() em
     // http://docs.gl/gl3/glDrawElements.
-    glDrawElements(
-        g_VirtualScene[object_name].rendering_mode,
-        g_VirtualScene[object_name].num_indices,
-        GL_UNSIGNED_INT,
-        (void *)(g_VirtualScene[object_name].first_index * sizeof(GLuint)));
+
+    ObjModel *model = object->m_model;
+
+    for(uint32_t batchIndex = 0; batchIndex < model->m_batchCount; batchIndex++)
+    {
+        ObjModel::Batch *batch = model->m_batches + batchIndex;
+        glDrawElements(model->m_drawMode, batch->m_count, GL_UNSIGNED_INT, (void *)(batch->m_start * sizeof(GLuint)));
+    }
+
 
     // "Desligamos" o VAO, evitando assim que operações posteriores venham a
     // alterar o mesmo. Isso evita bugs.
@@ -859,59 +908,59 @@ void DrawVirtualObject(const char *object_name)
 // Função que carrega os shaders de vértices e de fragmentos que serão
 // utilizados para renderização. Veja slides 180-200 do documento Aula_03_Rendering_Pipeline_Grafico.pdf.
 //
-void LoadShadersFromFiles()
-{
-    // Note que o caminho para os arquivos "shader_vertex.glsl" e
-    // "shader_fragment.glsl" estão fixados, sendo que assumimos a existência
-    // da seguinte estrutura no sistema de arquivos:
-    //
-    //    + FCG_Lab_01/
-    //    |
-    //    +--+ bin/
-    //    |  |
-    //    |  +--+ Release/  (ou Debug/ ou Linux/)
-    //    |     |
-    //    |     o-- main.exe
-    //    |
-    //    +--+ src/
-    //       |
-    //       o-- shader_vertex.glsl
-    //       |
-    //       o-- shader_fragment.glsl
-    //
-    GLuint vertex_shader_id = LoadShader_Vertex("../../src/shader_vertex.glsl");
-    GLuint fragment_shader_id = LoadShader_Fragment("../../src/shader_fragment.glsl");
+// void LoadShadersFromFiles()
+// {
+//     // Note que o caminho para os arquivos "shader_vertex.glsl" e
+//     // "shader_fragment.glsl" estão fixados, sendo que assumimos a existência
+//     // da seguinte estrutura no sistema de arquivos:
+//     //
+//     //    + FCG_Lab_01/
+//     //    |
+//     //    +--+ bin/
+//     //    |  |
+//     //    |  +--+ Release/  (ou Debug/ ou Linux/)
+//     //    |     |
+//     //    |     o-- main.exe
+//     //    |
+//     //    +--+ src/
+//     //       |
+//     //       o-- shader_vertex.glsl
+//     //       |
+//     //       o-- shader_fragment.glsl
+//     //
+//     GLuint vertex_shader_id = LoadShader_Vertex("../../src/shader_vertex.glsl");
+//     GLuint fragment_shader_id = LoadShader_Fragment("../../src/shader_fragment.glsl");
 
-    // Deletamos o programa de GPU anterior, caso ele exista.
-    if (g_GpuProgramID != 0)
-        glDeleteProgram(g_GpuProgramID);
+//     // Deletamos o programa de GPU anterior, caso ele exista.
+//     if (g_GpuProgramID != 0)
+//         glDeleteProgram(g_GpuProgramID);
 
-    // Criamos um programa de GPU utilizando os shaders carregados acima.
-    g_GpuProgramID = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
+//     // Criamos um programa de GPU utilizando os shaders carregados acima.
+//     g_GpuProgramID = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
 
-    // Buscamos o endereço das variáveis definidas dentro do Vertex Shader.
-    // Utilizaremos estas variáveis para enviar dados para a placa de vídeo
-    // (GPU)! Veja arquivo "shader_vertex.glsl" e "shader_fragment.glsl".
-    g_model_uniform = glGetUniformLocation(g_GpuProgramID, "model");           // Variável da matriz "model"
-    g_view_uniform = glGetUniformLocation(g_GpuProgramID, "view");             // Variável da matriz "view" em shader_vertex.glsl
-    g_projection_uniform = glGetUniformLocation(g_GpuProgramID, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
-    g_object_id_uniform = glGetUniformLocation(g_GpuProgramID, "object_id");   // Variável "object_id" em shader_fragment.glsl
-    g_bbox_min_uniform = glGetUniformLocation(g_GpuProgramID, "bbox_min");
-    g_bbox_max_uniform = glGetUniformLocation(g_GpuProgramID, "bbox_max");
-    g_light_uniform = glGetUniformLocation(g_GpuProgramID, "light_position");
+//     // Buscamos o endereço das variáveis definidas dentro do Vertex Shader.
+//     // Utilizaremos estas variáveis para enviar dados para a placa de vídeo
+//     // (GPU)! Veja arquivo "shader_vertex.glsl" e "shader_fragment.glsl".
+//     g_model_uniform = glGetUniformLocation(g_GpuProgramID, "model");           // Variável da matriz "model"
+//     g_view_uniform = glGetUniformLocation(g_GpuProgramID, "view");             // Variável da matriz "view" em shader_vertex.glsl
+//     g_projection_uniform = glGetUniformLocation(g_GpuProgramID, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
+//     g_object_id_uniform = glGetUniformLocation(g_GpuProgramID, "object_id");   // Variável "object_id" em shader_fragment.glsl
+//     g_bbox_min_uniform = glGetUniformLocation(g_GpuProgramID, "bbox_min");
+//     g_bbox_max_uniform = glGetUniformLocation(g_GpuProgramID, "bbox_max");
+//     g_light_uniform = glGetUniformLocation(g_GpuProgramID, "light_position");
 
-    // Variáveis em "shader_fragment.glsl" para acesso das imagens de textura
-    glUseProgram(g_GpuProgramID);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage7"), 7);
-    glUseProgram(0);
-}
+//     // Variáveis em "shader_fragment.glsl" para acesso das imagens de textura
+//     glUseProgram(g_GpuProgramID);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
+//     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage7"), 7);
+//     glUseProgram(0);
+// }
 
 // Função que pega a matriz M e guarda a mesma no topo da pilha
 void PushMatrix(glm::mat4 M)
@@ -935,211 +984,211 @@ void PopMatrix(glm::mat4 &M)
 
 // Função que computa as normais de um ObjModel, caso elas não tenham sido
 // especificadas dentro do arquivo ".obj"
-void ComputeNormals(ObjModel *model)
-{
-    if (!model->attrib.normals.empty())
-        return;
+// void ComputeNormals(ObjModel *model)
+// {
+//     if (!model->attrib.normals.empty())
+//         return;
 
-    // Primeiro computamos as normais para todos os TRIÂNGULOS.
-    // Segundo, computamos as normais dos VÉRTICES através do método proposto
-    // por Gouraud, onde a normal de cada vértice vai ser a média das normais de
-    // todas as faces que compartilham este vértice.
+//     // Primeiro computamos as normais para todos os TRIÂNGULOS.
+//     // Segundo, computamos as normais dos VÉRTICES através do método proposto
+//     // por Gouraud, onde a normal de cada vértice vai ser a média das normais de
+//     // todas as faces que compartilham este vértice.
 
-    size_t num_vertices = model->attrib.vertices.size() / 3;
+//     size_t num_vertices = model->attrib.vertices.size() / 3;
 
-    std::vector<int> num_triangles_per_vertex(num_vertices, 0);
-    std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+//     std::vector<int> num_triangles_per_vertex(num_vertices, 0);
+//     std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 
-    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
-    {
-        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+//     for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+//     {
+//         size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
 
-        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
-        {
-            assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
+//         for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+//         {
+//             assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
 
-            glm::vec4 vertices[3];
-            for (size_t vertex = 0; vertex < 3; ++vertex)
-            {
-                tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
-                const float vx = model->attrib.vertices[3 * idx.vertex_index + 0];
-                const float vy = model->attrib.vertices[3 * idx.vertex_index + 1];
-                const float vz = model->attrib.vertices[3 * idx.vertex_index + 2];
-                vertices[vertex] = glm::vec4(vx, vy, vz, 1.0);
-            }
+//             glm::vec4 vertices[3];
+//             for (size_t vertex = 0; vertex < 3; ++vertex)
+//             {
+//                 tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
+//                 const float vx = model->attrib.vertices[3 * idx.vertex_index + 0];
+//                 const float vy = model->attrib.vertices[3 * idx.vertex_index + 1];
+//                 const float vz = model->attrib.vertices[3 * idx.vertex_index + 2];
+//                 vertices[vertex] = glm::vec4(vx, vy, vz, 1.0);
+//             }
 
-            const glm::vec4 a = vertices[0];
-            const glm::vec4 b = vertices[1];
-            const glm::vec4 c = vertices[2];
+//             const glm::vec4 a = vertices[0];
+//             const glm::vec4 b = vertices[1];
+//             const glm::vec4 c = vertices[2];
 
-            const glm::vec4 n = crossproduct(b - a, c - a);
+//             const glm::vec4 n = crossproduct(b - a, c - a);
 
-            for (size_t vertex = 0; vertex < 3; ++vertex)
-            {
-                tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
-                num_triangles_per_vertex[idx.vertex_index] += 1;
-                vertex_normals[idx.vertex_index] += n;
-                model->shapes[shape].mesh.indices[3 * triangle + vertex].normal_index = idx.vertex_index;
-            }
-        }
-    }
+//             for (size_t vertex = 0; vertex < 3; ++vertex)
+//             {
+//                 tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
+//                 num_triangles_per_vertex[idx.vertex_index] += 1;
+//                 vertex_normals[idx.vertex_index] += n;
+//                 model->shapes[shape].mesh.indices[3 * triangle + vertex].normal_index = idx.vertex_index;
+//             }
+//         }
+//     }
 
-    model->attrib.normals.resize(3 * num_vertices);
+//     model->attrib.normals.resize(3 * num_vertices);
 
-    for (size_t i = 0; i < vertex_normals.size(); ++i)
-    {
-        glm::vec4 n = vertex_normals[i] / (float)num_triangles_per_vertex[i];
-        n /= norm(n);
-        model->attrib.normals[3 * i + 0] = n.x;
-        model->attrib.normals[3 * i + 1] = n.y;
-        model->attrib.normals[3 * i + 2] = n.z;
-    }
-}
+//     for (size_t i = 0; i < vertex_normals.size(); ++i)
+//     {
+//         glm::vec4 n = vertex_normals[i] / (float)num_triangles_per_vertex[i];
+//         n /= norm(n);
+//         model->attrib.normals[3 * i + 0] = n.x;
+//         model->attrib.normals[3 * i + 1] = n.y;
+//         model->attrib.normals[3 * i + 2] = n.z;
+//     }
+// }
 
 // Constrói triângulos para futura renderização a partir de um ObjModel.
-void BuildTrianglesAndAddToVirtualScene(ObjModel *model)
-{
-    GLuint vertex_array_object_id;
-    glGenVertexArrays(1, &vertex_array_object_id);
-    glBindVertexArray(vertex_array_object_id);
+// void BuildTrianglesAndAddToVirtualScene(ObjModel *model)
+// {
+//     GLuint vertex_array_object_id;
+//     glGenVertexArrays(1, &vertex_array_object_id);
+//     glBindVertexArray(vertex_array_object_id);
 
-    std::vector<GLuint> indices;
-    std::vector<float> model_coefficients;
-    std::vector<float> normal_coefficients;
-    std::vector<float> texture_coefficients;
+//     std::vector<GLuint> indices;
+//     std::vector<float> model_coefficients;
+//     std::vector<float> normal_coefficients;
+//     std::vector<float> texture_coefficients;
 
-    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
-    {
+//     for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+//     {
 
-        size_t first_index = indices.size();
-        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+//         size_t first_index = indices.size();
+//         size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
 
-        const float minval = std::numeric_limits<float>::min();
-        const float maxval = std::numeric_limits<float>::max();
+//         const float minval = std::numeric_limits<float>::min();
+//         const float maxval = std::numeric_limits<float>::max();
 
-        glm::vec3 bbox_min = glm::vec3(maxval, maxval, maxval);
-        glm::vec3 bbox_max = glm::vec3(minval, minval, minval);
+//         glm::vec3 bbox_min = glm::vec3(maxval, maxval, maxval);
+//         glm::vec3 bbox_max = glm::vec3(minval, minval, minval);
 
-        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
-        {
-            assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
+//         for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+//         {
+//             assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
 
-            for (size_t vertex = 0; vertex < 3; ++vertex)
-            {
-                tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
+//             for (size_t vertex = 0; vertex < 3; ++vertex)
+//             {
+//                 tinyobj::index_t idx = model->shapes[shape].mesh.indices[3 * triangle + vertex];
 
-                indices.push_back(first_index + 3 * triangle + vertex);
+//                 indices.push_back(first_index + 3 * triangle + vertex);
 
-                const float vx = model->attrib.vertices[3 * idx.vertex_index + 0];
-                const float vy = model->attrib.vertices[3 * idx.vertex_index + 1];
-                const float vz = model->attrib.vertices[3 * idx.vertex_index + 2];
-                // printf("tri %d vert %d = (%.2f, %.2f, %.2f)\n", (int)triangle, (int)vertex, vx, vy, vz);
-                model_coefficients.push_back(vx);   // X
-                model_coefficients.push_back(vy);   // Y
-                model_coefficients.push_back(vz);   // Z
-                model_coefficients.push_back(1.0f); // W
+//                 const float vx = model->attrib.vertices[3 * idx.vertex_index + 0];
+//                 const float vy = model->attrib.vertices[3 * idx.vertex_index + 1];
+//                 const float vz = model->attrib.vertices[3 * idx.vertex_index + 2];
+//                 // printf("tri %d vert %d = (%.2f, %.2f, %.2f)\n", (int)triangle, (int)vertex, vx, vy, vz);
+//                 model_coefficients.push_back(vx);   // X
+//                 model_coefficients.push_back(vy);   // Y
+//                 model_coefficients.push_back(vz);   // Z
+//                 model_coefficients.push_back(1.0f); // W
 
-                bbox_min.x = std::min(bbox_min.x, vx);
-                bbox_min.y = std::min(bbox_min.y, vy);
-                bbox_min.z = std::min(bbox_min.z, vz);
-                bbox_max.x = std::max(bbox_max.x, vx);
-                bbox_max.y = std::max(bbox_max.y, vy);
-                bbox_max.z = std::max(bbox_max.z, vz);
+//                 bbox_min.x = std::min(bbox_min.x, vx);
+//                 bbox_min.y = std::min(bbox_min.y, vy);
+//                 bbox_min.z = std::min(bbox_min.z, vz);
+//                 bbox_max.x = std::max(bbox_max.x, vx);
+//                 bbox_max.y = std::max(bbox_max.y, vy);
+//                 bbox_max.z = std::max(bbox_max.z, vz);
 
-                // Inspecionando o código da tinyobjloader, o aluno Bernardo
-                // Sulzbach (2017/1) apontou que a maneira correta de testar se
-                // existem normais e coordenadas de textura no ObjModel é
-                // comparando se o índice retornado é -1. Fazemos isso abaixo.
+//                 // Inspecionando o código da tinyobjloader, o aluno Bernardo
+//                 // Sulzbach (2017/1) apontou que a maneira correta de testar se
+//                 // existem normais e coordenadas de textura no ObjModel é
+//                 // comparando se o índice retornado é -1. Fazemos isso abaixo.
 
-                if (idx.normal_index != -1)
-                {
-                    const float nx = model->attrib.normals[3 * idx.normal_index + 0];
-                    const float ny = model->attrib.normals[3 * idx.normal_index + 1];
-                    const float nz = model->attrib.normals[3 * idx.normal_index + 2];
-                    normal_coefficients.push_back(nx);   // X
-                    normal_coefficients.push_back(ny);   // Y
-                    normal_coefficients.push_back(nz);   // Z
-                    normal_coefficients.push_back(0.0f); // W
-                }
+//                 if (idx.normal_index != -1)
+//                 {
+//                     const float nx = model->attrib.normals[3 * idx.normal_index + 0];
+//                     const float ny = model->attrib.normals[3 * idx.normal_index + 1];
+//                     const float nz = model->attrib.normals[3 * idx.normal_index + 2];
+//                     normal_coefficients.push_back(nx);   // X
+//                     normal_coefficients.push_back(ny);   // Y
+//                     normal_coefficients.push_back(nz);   // Z
+//                     normal_coefficients.push_back(0.0f); // W
+//                 }
 
-                if (idx.texcoord_index != -1)
-                {
-                    const float u = model->attrib.texcoords[2 * idx.texcoord_index + 0];
-                    const float v = model->attrib.texcoords[2 * idx.texcoord_index + 1];
-                    texture_coefficients.push_back(u);
-                    texture_coefficients.push_back(v);
-                }
-            }
-        }
+//                 if (idx.texcoord_index != -1)
+//                 {
+//                     const float u = model->attrib.texcoords[2 * idx.texcoord_index + 0];
+//                     const float v = model->attrib.texcoords[2 * idx.texcoord_index + 1];
+//                     texture_coefficients.push_back(u);
+//                     texture_coefficients.push_back(v);
+//                 }
+//             }
+//         }
 
-        size_t last_index = indices.size() - 1;
+//         size_t last_index = indices.size() - 1;
 
-        SceneObject theobject;
-        theobject.name = model->shapes[shape].name;
-        theobject.first_index = first_index;                  // Primeiro índice
-        theobject.num_indices = last_index - first_index + 1; // Número de indices
-        theobject.rendering_mode = GL_TRIANGLES;              // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
-        theobject.vertex_array_object_id = vertex_array_object_id;
+//         SceneObject theobject;
+//         // theobject.name = model->shapes[shape].name;
+//         theobject.m_first_index = first_index;                  // Primeiro índice
+//         theobject.m_num_indices = last_index - first_index + 1; // Número de indices
+//         theobject.m_rendering_mode = GL_TRIANGLES;              // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+//         theobject.m_vertex_array_object_id = vertex_array_object_id;
 
-        theobject.bbox_min = bbox_min;
-        theobject.bbox_max = bbox_max;
+//         theobject.m_bbox_min = bbox_min;
+//         theobject.m_bbox_max = bbox_max;
 
-        g_VirtualScene[model->shapes[shape].name] = theobject;
-    }
+//         g_VirtualScene[model->shapes[shape].name] = theobject;
+//     }
 
-    GLuint VBO_model_coefficients_id;
-    glGenBuffers(1, &VBO_model_coefficients_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
-    GLuint location = 0;            // "(location = 0)" em "shader_vertex.glsl"
-    GLint number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
-    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(location);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+//     GLuint VBO_model_coefficients_id;
+//     glGenBuffers(1, &VBO_model_coefficients_id);
+//     glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+//     glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+//     glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
+//     GLuint location = 0;            // "(location = 0)" em "shader_vertex.glsl"
+//     GLint number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+//     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+//     glEnableVertexAttribArray(location);
+//     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    if (!normal_coefficients.empty())
-    {
-        GLuint VBO_normal_coefficients_id;
-        glGenBuffers(1, &VBO_normal_coefficients_id);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
-        glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
-        location = 1;             // "(location = 1)" em "shader_vertex.glsl"
-        number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
-        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(location);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
+//     if (!normal_coefficients.empty())
+//     {
+//         GLuint VBO_normal_coefficients_id;
+//         glGenBuffers(1, &VBO_normal_coefficients_id);
+//         glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
+//         glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+//         glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
+//         location = 1;             // "(location = 1)" em "shader_vertex.glsl"
+//         number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+//         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+//         glEnableVertexAttribArray(location);
+//         glBindBuffer(GL_ARRAY_BUFFER, 0);
+//     }
 
-    if (!texture_coefficients.empty())
-    {
-        GLuint VBO_texture_coefficients_id;
-        glGenBuffers(1, &VBO_texture_coefficients_id);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
-        glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
-        location = 2;             // "(location = 1)" em "shader_vertex.glsl"
-        number_of_dimensions = 2; // vec2 em "shader_vertex.glsl"
-        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(location);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
+//     if (!texture_coefficients.empty())
+//     {
+//         GLuint VBO_texture_coefficients_id;
+//         glGenBuffers(1, &VBO_texture_coefficients_id);
+//         glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
+//         glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+//         glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
+//         location = 2;             // "(location = 1)" em "shader_vertex.glsl"
+//         number_of_dimensions = 2; // vec2 em "shader_vertex.glsl"
+//         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+//         glEnableVertexAttribArray(location);
+//         glBindBuffer(GL_ARRAY_BUFFER, 0);
+//     }
 
-    GLuint indices_id;
-    glGenBuffers(1, &indices_id);
+//     GLuint indices_id;
+//     glGenBuffers(1, &indices_id);
 
-    // "Ligamos" o buffer. Note que o tipo agora é GL_ELEMENT_ARRAY_BUFFER.
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(GLuint), indices.data());
-    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // XXX Errado!
-    //
+//     // "Ligamos" o buffer. Note que o tipo agora é GL_ELEMENT_ARRAY_BUFFER.
+//     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
+//     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), NULL, GL_STATIC_DRAW);
+//     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(GLuint), indices.data());
+//     // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // XXX Errado!
+//     //
 
-    // "Desligamos" o VAO, evitando assim que operações posteriores venham a
-    // alterar o mesmo. Isso evita bugs.
-    glBindVertexArray(0);
-}
+//     // "Desligamos" o VAO, evitando assim que operações posteriores venham a
+//     // alterar o mesmo. Isso evita bugs.
+//     glBindVertexArray(0);
+// }
 
 // Carrega um Vertex Shader de um arquivo GLSL. Veja definição de LoadShader() abaixo.
 GLuint LoadShader_Vertex(const char *filename)
@@ -1635,186 +1684,186 @@ void TextRendering_ShowFramesPerSecond(GLFWwindow *window)
 // Função para debugging: imprime no terminal todas informações de um modelo
 // geométrico carregado de um arquivo ".obj".
 // Veja: https://github.com/syoyo/tinyobjloader/blob/22883def8db9ef1f3ffb9b404318e7dd25fdbb51/loader_example.cc#L98
-void PrintObjModelInfo(ObjModel *model)
-{
-    const tinyobj::attrib_t &attrib = model->attrib;
-    const std::vector<tinyobj::shape_t> &shapes = model->shapes;
-    const std::vector<tinyobj::material_t> &materials = model->materials;
+// void PrintObjModelInfo(ObjModel *model)
+// {
+//     const tinyobj::attrib_t &attrib = model->attrib;
+//     const std::vector<tinyobj::shape_t> &shapes = model->shapes;
+//     const std::vector<tinyobj::material_t> &materials = model->materials;
 
-    printf("# of vertices  : %d\n", (int)(attrib.vertices.size() / 3));
-    printf("# of normals   : %d\n", (int)(attrib.normals.size() / 3));
-    printf("# of texcoords : %d\n", (int)(attrib.texcoords.size() / 2));
-    printf("# of shapes    : %d\n", (int)shapes.size());
-    printf("# of materials : %d\n", (int)materials.size());
+//     printf("# of vertices  : %d\n", (int)(attrib.vertices.size() / 3));
+//     printf("# of normals   : %d\n", (int)(attrib.normals.size() / 3));
+//     printf("# of texcoords : %d\n", (int)(attrib.texcoords.size() / 2));
+//     printf("# of shapes    : %d\n", (int)shapes.size());
+//     printf("# of materials : %d\n", (int)materials.size());
 
-    for (size_t v = 0; v < attrib.vertices.size() / 3; v++)
-    {
-        printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-               static_cast<const double>(attrib.vertices[3 * v + 0]),
-               static_cast<const double>(attrib.vertices[3 * v + 1]),
-               static_cast<const double>(attrib.vertices[3 * v + 2]));
-    }
+//     for (size_t v = 0; v < attrib.vertices.size() / 3; v++)
+//     {
+//         printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
+//                static_cast<const double>(attrib.vertices[3 * v + 0]),
+//                static_cast<const double>(attrib.vertices[3 * v + 1]),
+//                static_cast<const double>(attrib.vertices[3 * v + 2]));
+//     }
 
-    for (size_t v = 0; v < attrib.normals.size() / 3; v++)
-    {
-        printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-               static_cast<const double>(attrib.normals[3 * v + 0]),
-               static_cast<const double>(attrib.normals[3 * v + 1]),
-               static_cast<const double>(attrib.normals[3 * v + 2]));
-    }
+//     for (size_t v = 0; v < attrib.normals.size() / 3; v++)
+//     {
+//         printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
+//                static_cast<const double>(attrib.normals[3 * v + 0]),
+//                static_cast<const double>(attrib.normals[3 * v + 1]),
+//                static_cast<const double>(attrib.normals[3 * v + 2]));
+//     }
 
-    for (size_t v = 0; v < attrib.texcoords.size() / 2; v++)
-    {
-        printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v),
-               static_cast<const double>(attrib.texcoords[2 * v + 0]),
-               static_cast<const double>(attrib.texcoords[2 * v + 1]));
-    }
+//     for (size_t v = 0; v < attrib.texcoords.size() / 2; v++)
+//     {
+//         printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v),
+//                static_cast<const double>(attrib.texcoords[2 * v + 0]),
+//                static_cast<const double>(attrib.texcoords[2 * v + 1]));
+//     }
 
-    // For each shape
-    for (size_t i = 0; i < shapes.size(); i++)
-    {
-        printf("shape[%ld].name = %s\n", static_cast<long>(i),
-               shapes[i].name.c_str());
-        printf("Size of shape[%ld].indices: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.indices.size()));
+//     // For each shape
+//     for (size_t i = 0; i < shapes.size(); i++)
+//     {
+//         printf("shape[%ld].name = %s\n", static_cast<long>(i),
+//                shapes[i].name.c_str());
+//         printf("Size of shape[%ld].indices: %lu\n", static_cast<long>(i),
+//                static_cast<unsigned long>(shapes[i].mesh.indices.size()));
 
-        size_t index_offset = 0;
+//         size_t index_offset = 0;
 
-        assert(shapes[i].mesh.num_face_vertices.size() ==
-               shapes[i].mesh.material_ids.size());
+//         assert(shapes[i].mesh.num_face_vertices.size() ==
+//                shapes[i].mesh.material_ids.size());
 
-        printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
+//         printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i),
+//                static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
 
-        // For each face
-        for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++)
-        {
-            size_t fnum = shapes[i].mesh.num_face_vertices[f];
+//         // For each face
+//         for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++)
+//         {
+//             size_t fnum = shapes[i].mesh.num_face_vertices[f];
 
-            printf("  face[%ld].fnum = %ld\n", static_cast<long>(f),
-                   static_cast<unsigned long>(fnum));
+//             printf("  face[%ld].fnum = %ld\n", static_cast<long>(f),
+//                    static_cast<unsigned long>(fnum));
 
-            // For each vertex in the face
-            for (size_t v = 0; v < fnum; v++)
-            {
-                tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-                printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f),
-                       static_cast<long>(v), idx.vertex_index, idx.normal_index,
-                       idx.texcoord_index);
-            }
+//             // For each vertex in the face
+//             for (size_t v = 0; v < fnum; v++)
+//             {
+//                 tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+//                 printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f),
+//                        static_cast<long>(v), idx.vertex_index, idx.normal_index,
+//                        idx.texcoord_index);
+//             }
 
-            printf("  face[%ld].material_id = %d\n", static_cast<long>(f),
-                   shapes[i].mesh.material_ids[f]);
+//             printf("  face[%ld].material_id = %d\n", static_cast<long>(f),
+//                    shapes[i].mesh.material_ids[f]);
 
-            index_offset += fnum;
-        }
+//             index_offset += fnum;
+//         }
 
-        printf("shape[%ld].num_tags: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.tags.size()));
-        for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++)
-        {
-            printf("  tag[%ld] = %s ", static_cast<long>(t),
-                   shapes[i].mesh.tags[t].name.c_str());
-            printf(" ints: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j)
-            {
-                printf("%ld", static_cast<long>(shapes[i].mesh.tags[t].intValues[j]));
-                if (j < (shapes[i].mesh.tags[t].intValues.size() - 1))
-                {
-                    printf(", ");
-                }
-            }
-            printf("]");
+//         printf("shape[%ld].num_tags: %lu\n", static_cast<long>(i),
+//                static_cast<unsigned long>(shapes[i].mesh.tags.size()));
+//         for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++)
+//         {
+//             printf("  tag[%ld] = %s ", static_cast<long>(t),
+//                    shapes[i].mesh.tags[t].name.c_str());
+//             printf(" ints: [");
+//             for (size_t j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j)
+//             {
+//                 printf("%ld", static_cast<long>(shapes[i].mesh.tags[t].intValues[j]));
+//                 if (j < (shapes[i].mesh.tags[t].intValues.size() - 1))
+//                 {
+//                     printf(", ");
+//                 }
+//             }
+//             printf("]");
 
-            printf(" floats: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j)
-            {
-                printf("%f", static_cast<const double>(
-                                 shapes[i].mesh.tags[t].floatValues[j]));
-                if (j < (shapes[i].mesh.tags[t].floatValues.size() - 1))
-                {
-                    printf(", ");
-                }
-            }
-            printf("]");
+//             printf(" floats: [");
+//             for (size_t j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j)
+//             {
+//                 printf("%f", static_cast<const double>(
+//                                  shapes[i].mesh.tags[t].floatValues[j]));
+//                 if (j < (shapes[i].mesh.tags[t].floatValues.size() - 1))
+//                 {
+//                     printf(", ");
+//                 }
+//             }
+//             printf("]");
 
-            printf(" strings: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].stringValues.size(); ++j)
-            {
-                printf("%s", shapes[i].mesh.tags[t].stringValues[j].c_str());
-                if (j < (shapes[i].mesh.tags[t].stringValues.size() - 1))
-                {
-                    printf(", ");
-                }
-            }
-            printf("]");
-            printf("\n");
-        }
-    }
+//             printf(" strings: [");
+//             for (size_t j = 0; j < shapes[i].mesh.tags[t].stringValues.size(); ++j)
+//             {
+//                 printf("%s", shapes[i].mesh.tags[t].stringValues[j].c_str());
+//                 if (j < (shapes[i].mesh.tags[t].stringValues.size() - 1))
+//                 {
+//                     printf(", ");
+//                 }
+//             }
+//             printf("]");
+//             printf("\n");
+//         }
+//     }
 
-    for (size_t i = 0; i < materials.size(); i++)
-    {
-        printf("material[%ld].name = %s\n", static_cast<long>(i),
-               materials[i].name.c_str());
-        printf("  material.Ka = (%f, %f ,%f)\n",
-               static_cast<const double>(materials[i].ambient[0]),
-               static_cast<const double>(materials[i].ambient[1]),
-               static_cast<const double>(materials[i].ambient[2]));
-        printf("  material.Kd = (%f, %f ,%f)\n",
-               static_cast<const double>(materials[i].diffuse[0]),
-               static_cast<const double>(materials[i].diffuse[1]),
-               static_cast<const double>(materials[i].diffuse[2]));
-        printf("  material.Ks = (%f, %f ,%f)\n",
-               static_cast<const double>(materials[i].specular[0]),
-               static_cast<const double>(materials[i].specular[1]),
-               static_cast<const double>(materials[i].specular[2]));
-        printf("  material.Tr = (%f, %f ,%f)\n",
-               static_cast<const double>(materials[i].transmittance[0]),
-               static_cast<const double>(materials[i].transmittance[1]),
-               static_cast<const double>(materials[i].transmittance[2]));
-        printf("  material.Ke = (%f, %f ,%f)\n",
-               static_cast<const double>(materials[i].emission[0]),
-               static_cast<const double>(materials[i].emission[1]),
-               static_cast<const double>(materials[i].emission[2]));
-        printf("  material.Ns = %f\n",
-               static_cast<const double>(materials[i].shininess));
-        printf("  material.Ni = %f\n", static_cast<const double>(materials[i].ior));
-        printf("  material.dissolve = %f\n",
-               static_cast<const double>(materials[i].dissolve));
-        printf("  material.illum = %d\n", materials[i].illum);
-        printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
-        printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
-        printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
-        printf("  material.map_Ns = %s\n",
-               materials[i].specular_highlight_texname.c_str());
-        printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
-        printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
-        printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
-        printf("  <<PBR>>\n");
-        printf("  material.Pr     = %f\n", materials[i].roughness);
-        printf("  material.Pm     = %f\n", materials[i].metallic);
-        printf("  material.Ps     = %f\n", materials[i].sheen);
-        printf("  material.Pc     = %f\n", materials[i].clearcoat_thickness);
-        printf("  material.Pcr    = %f\n", materials[i].clearcoat_thickness);
-        printf("  material.aniso  = %f\n", materials[i].anisotropy);
-        printf("  material.anisor = %f\n", materials[i].anisotropy_rotation);
-        printf("  material.map_Ke = %s\n", materials[i].emissive_texname.c_str());
-        printf("  material.map_Pr = %s\n", materials[i].roughness_texname.c_str());
-        printf("  material.map_Pm = %s\n", materials[i].metallic_texname.c_str());
-        printf("  material.map_Ps = %s\n", materials[i].sheen_texname.c_str());
-        printf("  material.norm   = %s\n", materials[i].normal_texname.c_str());
-        std::map<std::string, std::string>::const_iterator it(
-            materials[i].unknown_parameter.begin());
-        std::map<std::string, std::string>::const_iterator itEnd(
-            materials[i].unknown_parameter.end());
+//     for (size_t i = 0; i < materials.size(); i++)
+//     {
+//         printf("material[%ld].name = %s\n", static_cast<long>(i),
+//                materials[i].name.c_str());
+//         printf("  material.Ka = (%f, %f ,%f)\n",
+//                static_cast<const double>(materials[i].ambient[0]),
+//                static_cast<const double>(materials[i].ambient[1]),
+//                static_cast<const double>(materials[i].ambient[2]));
+//         printf("  material.Kd = (%f, %f ,%f)\n",
+//                static_cast<const double>(materials[i].diffuse[0]),
+//                static_cast<const double>(materials[i].diffuse[1]),
+//                static_cast<const double>(materials[i].diffuse[2]));
+//         printf("  material.Ks = (%f, %f ,%f)\n",
+//                static_cast<const double>(materials[i].specular[0]),
+//                static_cast<const double>(materials[i].specular[1]),
+//                static_cast<const double>(materials[i].specular[2]));
+//         printf("  material.Tr = (%f, %f ,%f)\n",
+//                static_cast<const double>(materials[i].transmittance[0]),
+//                static_cast<const double>(materials[i].transmittance[1]),
+//                static_cast<const double>(materials[i].transmittance[2]));
+//         printf("  material.Ke = (%f, %f ,%f)\n",
+//                static_cast<const double>(materials[i].emission[0]),
+//                static_cast<const double>(materials[i].emission[1]),
+//                static_cast<const double>(materials[i].emission[2]));
+//         printf("  material.Ns = %f\n",
+//                static_cast<const double>(materials[i].shininess));
+//         printf("  material.Ni = %f\n", static_cast<const double>(materials[i].ior));
+//         printf("  material.dissolve = %f\n",
+//                static_cast<const double>(materials[i].dissolve));
+//         printf("  material.illum = %d\n", materials[i].illum);
+//         printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
+//         printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
+//         printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
+//         printf("  material.map_Ns = %s\n",
+//                materials[i].specular_highlight_texname.c_str());
+//         printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
+//         printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
+//         printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
+//         printf("  <<PBR>>\n");
+//         printf("  material.Pr     = %f\n", materials[i].roughness);
+//         printf("  material.Pm     = %f\n", materials[i].metallic);
+//         printf("  material.Ps     = %f\n", materials[i].sheen);
+//         printf("  material.Pc     = %f\n", materials[i].clearcoat_thickness);
+//         printf("  material.Pcr    = %f\n", materials[i].clearcoat_thickness);
+//         printf("  material.aniso  = %f\n", materials[i].anisotropy);
+//         printf("  material.anisor = %f\n", materials[i].anisotropy_rotation);
+//         printf("  material.map_Ke = %s\n", materials[i].emissive_texname.c_str());
+//         printf("  material.map_Pr = %s\n", materials[i].roughness_texname.c_str());
+//         printf("  material.map_Pm = %s\n", materials[i].metallic_texname.c_str());
+//         printf("  material.map_Ps = %s\n", materials[i].sheen_texname.c_str());
+//         printf("  material.norm   = %s\n", materials[i].normal_texname.c_str());
+//         std::map<std::string, std::string>::const_iterator it(
+//             materials[i].unknown_parameter.begin());
+//         std::map<std::string, std::string>::const_iterator itEnd(
+//             materials[i].unknown_parameter.end());
 
-        for (; it != itEnd; it++)
-        {
-            printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
-        }
-        printf("\n");
-    }
-}
+//         for (; it != itEnd; it++)
+//         {
+//             printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
+//         }
+//         printf("\n");
+//     }
+// }
 
 // set makeprg=cd\ ..\ &&\ make\ run\ >/dev/null
 // vim: set spell spelllang=pt_br :
